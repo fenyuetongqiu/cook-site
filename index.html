@@ -703,14 +703,16 @@ function delStatOrder(id){
   save(); render(); toast('删掉了'); push();
 }
 function clearStats(){
-  var list = statOrders();
-  var label = {week:'这周', month:'这个月', year:'今年', all:'全部'};
-  if(!list.length){ toast('这段时间还没有记录'); return; }
-  if(!confirm('把「' + label[STAT_RANGE] + '」的 ' + list.length + ' 条做完记录都删掉？')) return;
+  var done = S.orders.filter(function(o){ return o.status === 'done'; });
+  if(!done.length){ toast('还没有做完的记录'); return; }
+  if(!confirm('一键清空排行？要删掉全部 ' + done.length + ' 条做完记录。')) return;
+  var v = prompt('怕误触，输入「清空」两个字再点确定（不想删就点取消）');
+  if(v === null) return;
+  if(String(v).trim() !== '清空'){ toast('没删，你放心'); return; }
   var ids = {};
-  list.forEach(function(o){ ids[o.id] = 1; });
+  done.forEach(function(o){ ids[o.id] = 1; });
   S.orders = S.orders.filter(function(o){ return !ids[o.id]; });
-  save(); render(); toast('清空好了'); push();
+  save(); render(); toast('排行清空了'); push();
 }
 function render(){
   if(!CONF.role){ renderLogin(); return; }
@@ -996,7 +998,7 @@ function viewStats(){
   var label = {week:'这周', month:'这个月', year:'今年', all:'全部'};
   var h = '<div class="chips">' + ['week','month','year','all'].map(function(r){
     return '<button class="chip ' + (STAT_RANGE === r ? 'on' : '') + '" onclick="setSR(\'' + r + '\')">' + label[r] + '</button>';
-  }).join('') + '<button class="chip" onclick="clearStats()">清空这组</button></div>';
+  }).join('') + '<button class="chip" onclick="clearStats()">一键清空排行</button></div>';
 
   h += '<div class="card" style="margin-bottom:10px"><div style="display:flex;gap:10px;text-align:center">' +
     '<div style="flex:1"><div style="font-size:26px;font-weight:700;color:var(--brand)">' + list.length + '</div><div style="font-size:12px;color:var(--ink2)">做菜次数</div></div>' +
