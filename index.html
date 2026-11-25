@@ -135,6 +135,7 @@ nav,.search input,.qty button{border-radius:16px!important}
 .swatch.on{border-color:var(--brand)!important;box-shadow:0 0 0 3px var(--soft)}
 .swatch .dot{width:16px;height:16px;border-radius:50%;display:inline-block;flex:0 0 auto}
 .swatch b{font-weight:600}
+.editb{margin-left:auto;border:1px solid var(--line);background:#fff;color:var(--brand);border-radius:999px;padding:1px 8px;font-size:11.5px;font-weight:600;cursor:pointer}
 .delx{border:0;background:#fdeceb;color:#c0392b;border-radius:999px;width:22px;height:22px;font-size:12px;line-height:1;cursor:pointer;vertical-align:middle}
 </style>
 </head>
@@ -354,7 +355,17 @@ var SEED_RECIPES = [
 var COMMON_INGS = ['番茄','鸡蛋','土豆','青椒','猪肉','五花肉','猪里脊','牛腩','排骨','鸡翅','豆腐','生菜','青菜','包菜','黄瓜','茄子','洋葱','胡萝卜','木耳','香菇','冬瓜','玉米','米饭','面条','葱','姜','蒜','干辣椒','生抽','醋','糖','冰糖','淀粉','豆瓣酱','番茄酱','香油','紫菜','可乐','蚝油','料酒'];
 
 /* 全部菜谱 = 内置 + 自己加的 */
-function ALL(){ return (S && S.recipes && S.recipes.length) ? SEED_RECIPES.concat(S.recipes) : SEED_RECIPES; }
+function ALL(){
+  var map = {}, order = [];
+  SEED_RECIPES.forEach(function(r){ if(!map[r.id]) order.push(r.id); map[r.id] = r; });
+  (S && S.recipes ? S.recipes : []).forEach(function(r){
+    if(!map[r.id]) order.push(r.id);
+    map[r.id] = r;
+  });
+  return order.map(function(id){ return map[id]; });
+}
+function isSeed(id){ for(var i=0;i<SEED_RECIPES.length;i++){ if(SEED_RECIPES[i].id === id) return true; } return false; }
+function isOverride(id){ for(var i=0;i<(S.recipes||[]).length;i++){ if(S.recipes[i].id === id) return true; } return false; }
 
 /* ============ 本地状态 ============ */
 var KEY = 'home-kitchen-v2';
@@ -1118,10 +1129,11 @@ function viewMenu(){
   h += '<div class="grid">' + list.map(function(r){
       var madeM = madeN(r.id);
       return '<div class="card" onclick="openRecipe(\'' + r.id + '\')" style="cursor:pointer">' + thumbHTML(r.id) +
-        '<h3>' + esc(r.name) + '</h3>' +
+        '<h3 style="display:flex;align-items:center;gap:6px">' + esc(r.name) +
+          (CONF.role === 'cook' ? '<button class="editb" onclick="event.stopPropagation();editRecipe(\'' + r.id + '\')">✏️ 改</button>' : '') + '</h3>' +
         '<div class="meta"><span class="tag">' + (r.time || '?') + ' 分钟</span><span class="tag">' + esc(r.level || '家常') + '</span>' +
         (madeM ? '<span class="tag" style="background:#fff1e6;color:var(--brand)">做过 ' + madeM + ' 次</span>' : '') +
-        (r.custom ? '<span class="tag taste">自己加的</span>' : '') +
+        (isOverride(r.id) ? '<span class="tag taste">改过</span>' : (r.custom ? '<span class="tag taste">自己加的</span>' : '')) +
         (cookable(r) ? '<span class="tag taste">材料齐</span>' : '') + '</div></div>';
     }).join('') + '</div>';
   return h;
@@ -1145,8 +1157,8 @@ function openRecipe(id){
     (r.tip ? '<div class="tip">小贴士：' + esc(r.tip) + '</div>' : '') +
     '<div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap">' +
       '<button class="btn" style="flex:1;min-width:120px" onclick="addCart(\'' + r.id + '\');closeSheet()">加入点菜单</button>' +
-      (r.custom ? '<button class="btn ghost" onclick="closeSheet();editRecipe(\'' + r.id + '\')">改</button>' +
-                  '<button class="btn gray" onclick="delRecipe(\'' + r.id + '\')">删</button>' : '') +
+      (CONF.role === 'cook' ? '<button class="btn ghost" onclick="closeSheet();editRecipe(\'' + r.id + '\')">改一下</button>' : '') +
+      ((r.custom || isOverride(r.id)) ? '<button class="btn gray" onclick="delRecipe(\'' + r.id + '\')">' + (isSeed(r.id) ? '恢复原样' : '删') + '</button>' : '') +
       '<button class="btn ghost" onclick="closeSheet()">关闭</button></div>');
 }
 
@@ -1398,7 +1410,9 @@ function saveRecipe(){
     S.imgsVer = Date.now();
   }
   if(EDIT_ID){
-    for(var i=0;i<S.recipes.length;i++){ if(S.recipes[i].id === EDIT_ID){ S.recipes[i] = obj; break; } }
+    var hit = false;
+    for(var i=0;i<S.recipes.length;i++){ if(S.recipes[i].id === EDIT_ID){ S.recipes[i] = obj; hit = true; break; } }
+    if(!hit) S.recipes.push(obj);
   } else {
     S.recipes.push(obj);
   }
@@ -1407,10 +1421,11 @@ function saveRecipe(){
 }
 
 function delRecipe(id){
-  if(!confirm('删掉这道菜？')) return;
+  var sd = isSeed(id);
+  if(!confirm(sd ? '这道菜恢复成原来的样子？（你改的内容会没）' : '删掉这道菜？')) return;
   S.recipes = (S.recipes || []).filter(function(x){ return x.id !== id; });
   if((S.imgs || {})[id]){ delete S.imgs[id]; S.imgsVer = Date.now(); }
-  save(); closeSheet(); render(); toast('删了');
+  save(); closeSheet(); render(); toast(sd ? '恢复原样了' : '删了');
   if(syncOn()) push();
 }
 
