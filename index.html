@@ -986,7 +986,7 @@ function openOrder(id){
       '<div><b style="font-size:14px">用料</b><div class="meta" style="margin-top:4px">' +
         r.need.map(function(x){
           var has = haveIng(x.n);
-          return '<span class="tag' + (has ? ' taste' : '') + '">' + esc(x.n) + ' ' + esc(x.a) + (has ? ' ✓' : ' ✗') + '</span>';
+          return '<span class="tag' + (has ? ' taste' : '') + '">' + esc(x.n) + ' ' + esc(friendlyAmt(x.a)) + (has ? ' ✓' : ' ✗') + '</span>';
         }).join('') + '</div></div>' +
       '<ol class="steps">' + r.steps.map(function(s){ return '<li>' + esc(s) + '</li>'; }).join('') + '</ol>' +
       '<div class="tip">小贴士：' + esc(r.tip) + '</div>';
@@ -1030,7 +1030,7 @@ function openRecipe(id){
     '<div style="margin:8px 0 4px"><b style="font-size:14px">用料</b></div>' +
     '<div class="meta">' + (need.length ? need.map(function(x){
       var has = haveIng(x.n);
-      return '<span class="tag' + (has ? ' taste' : '') + '">' + esc(x.n) + ' ' + esc(x.a) + (has ? ' ✓' : ' 缺') + '</span>';
+      return '<span class="tag' + (has ? ' taste' : '') + '">' + esc(x.n) + ' ' + esc(friendlyAmt(x.a)) + (has ? ' ✓' : ' 缺') + '</span>';
     }).join('') : '<span class="tag">还没写</span>') + '</div>' +
     '<div style="margin:12px 0 4px"><b style="font-size:14px">做法</b></div>' +
     (steps.length ? '<ol class="steps">' + steps.map(function(s){ return '<li>' + esc(s) + '</li>'; }).join('') + '</ol>'
@@ -1059,6 +1059,35 @@ function guessLevel(n){
   if(/红烧|炖|卤|清蒸|烤|糖醋|鱼|排骨|虾/.test(n)) return '偏难';
   if(/汤|粥|炒蛋|青菜|凉拌|拍|蒸蛋|羹|炒饭/.test(n)) return '简单';
   return '中等';
+}
+function friendlyAmt(a){
+  a = String(a || '').trim();
+  var m = a.match(/^(\d+(?:\.\d+)?)\s*(kg|千克|公斤)$/);
+  if(m){ var kg = parseFloat(m[1]); return kg >= 2 ? (kg + ' 斤') : (kg >= 1 ? '两斤' : '一斤'); }
+  m = a.match(/^(\d+(?:\.\d+)?)\s*(g|克)$/);
+  if(m){
+    var g = parseFloat(m[1]);
+    if(g >= 750) return '一斤半';
+    if(g >= 450) return '一斤';
+    if(g >= 350) return '大半斤';
+    if(g >= 220) return '半斤';
+    if(g >= 160) return '三四个';
+    if(g >= 90) return '二两';
+    if(g >= 50) return '一两';
+    return '一点点';
+  }
+  m = a.match(/^(\d+(?:\.\d+)?)\s*(ml|毫升)$/);
+  if(m){
+    var ml = parseFloat(m[1]);
+    if(ml >= 600) return '两大碗';
+    if(ml >= 300) return '一大碗';
+    if(ml >= 150) return '半碗';
+    if(ml >= 40) return '两三勺';
+    return '一点点';
+  }
+  m = a.match(/^(\d+(?:\.\d+)?)\s*(斤|两)$/);
+  if(m){ var n = parseFloat(m[1]); return n === 1 ? ('一' + m[2]) : (n + m[2]); }
+  return a;
 }
 function guessCat(n){
   if(/汤|羹|粥/.test(n)) return '汤';
