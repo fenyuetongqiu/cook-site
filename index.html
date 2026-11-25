@@ -1043,55 +1043,153 @@ function openRecipe(id){
       '<button class="btn ghost" onclick="closeSheet()">关闭</button></div>');
 }
 
-/* ---- 加 / 改 / 删 自己的菜 ---- */
+/* ---- 加 / 改 / 删 自己的菜（阿姨版：能点就不打字） ---- */
 var EDIT_ID = '';
-function editRecipe(id){
-  EDIT_ID = id || '';
-  NEW_IMG = null;
-  var r = id ? byId(id) : null;
-  var needTxt = r ? (r.need || []).map(function(x){ return x.n + ' ' + x.a; }).join('\n') : '';
-  var stepTxt = r ? (r.steps || []).join('\n') : '';
-  sheet('<h2>' + (r ? '改这道菜' : '加一道新菜') + '<button class="close" onclick="closeSheet()">关</button></h2>' +
-    '<div class="row"><label>菜名</label><input id="rName" value="' + esc(r ? r.name : '') + '" placeholder="例：红烧鱼"></div>' +
-    '<div class="row" style="align-items:flex-start"><label style="padding-top:9px">图片</label><div style="flex:1">' +
-      '<input id="rImg" type="file" accept="image/*" onchange="pickImg(this)" style="font-size:13px">' +
-      '<div id="rImgPrev" style="margin-top:6px">' + ((r && (S.imgs || {})[r.id]) ? ('<img src="' + S.imgs[r.id] + '" style="max-width:100%;border-radius:8px">') : '<span style="font-size:12px;color:#a4968b">没图片就只显示菜名</span>') + '</div>' +
-      ((r && (S.imgs || {})[r.id]) ? '<button class="btn mini gray" style="margin-top:6px" onclick="clearImg()">去掉图片</button>' : '') +
-    '</div></div>' +
-    '<div class="row"><label>多少分钟</label><input id="rTime" type="number" min="1" value="' + esc(r ? (r.time || 20) : 20) + '"></div>' +
-    '<div class="row"><label>分类</label><select id="rCat">' +
-      CATS.map(function(x){ return '<option' + ((r && catOf(r) === x) ? ' selected' : '') + '>' + x + '</option>'; }).join('') +
-      '</select></div>' +
-    '<div class="row"><label>难度</label><select id="rLevel">' +
-      ['简单','中等','偏难'].map(function(x){ return '<option' + ((r && r.level === x) ? ' selected' : '') + '>' + x + '</option>'; }).join('') +
-      '</select></div>' +
-    '<div class="row" style="align-items:flex-start"><label style="padding-top:9px">用料</label><textarea id="rNeed" placeholder="每样一行，例：\n番茄 2个\n鸡蛋 3个">' + esc(needTxt) + '</textarea></div>' +
-    '<div class="row" style="align-items:flex-start"><label style="padding-top:9px">步骤</label><textarea id="rSteps" style="min-height:110px" placeholder="一步一行，例：\n1. 鸡蛋打散\n2. 热锅下蛋液">' + esc(stepTxt) + '</textarea></div>' +
-    '<div class="row" style="align-items:flex-start"><label style="padding-top:9px">简介</label><textarea id="rIntro" placeholder="一句话说明，可留空">' + esc(r ? (r.intro || '') : '') + '</textarea></div>' +
-    '<div class="row" style="align-items:flex-start"><label style="padding-top:9px">小贴士</label><textarea id="rTip" placeholder="火候、窍门，可留空">' + esc(r ? (r.tip || '') : '') + '</textarea></div>' +
-    '<div style="display:flex;gap:8px;margin-top:10px">' +
+var EDIT_DRAFT = null;
+var QUICK_NAMES = ['红烧鱼','糖醋排骨','麻婆豆腐','地三鲜','腐乳空心菜','西红柿鸡蛋汤','土豆炖牛肉','青椒炒蛋','蒜苔炒肉','木耳炒鸡蛋','清炒菠菜','冬瓜排骨汤','排骨藕汤','小鸡炖蘑菇','香菇青菜','卤鸡腿','盐水毛豆','凉拌黄瓜','酸菜鱼','香辣虾','手撕包菜','炒河粉','蛋炒饭','鸡蛋羹','疙瘩汤','小米粥','红薯粥','煎饺','蒸蛋','葱爆羊肉','溜肉段','干锅花菜','焖面','油泼面','小炒黄牛肉','口水鸡','酱牛肉','酸豆角肉末','家常豆腐','糖醋藕片','莴笋炒肉','西芹百合','清蒸鱼','白菜炖粉条','鸡肉炖土豆','紫菜蛋花汤','拍黄瓜','干煸杏鲍菇'];
+
+function guessTime(n){
+  if(/粥/.test(n)) return 40;
+  if(/汤|炖|藕/.test(n)) return 60;
+  if(/红烧|排骨|鱼|鸡|牛肉|鸭/.test(n)) return 45;
+  if(/蒸|煎|炒|拌/.test(n)) return 15;
+  return 25;
+}
+function guessLevel(n){
+  if(/红烧|炖|卤|清蒸|烤|糖醋|鱼|排骨|虾/.test(n)) return '偏难';
+  if(/汤|粥|炒蛋|青菜|凉拌|拍|蒸蛋|羹|炒饭/.test(n)) return '简单';
+  return '中等';
+}
+function guessCat(n){
+  if(/汤|羹|粥/.test(n)) return '汤';
+  if(/饭|面|粉|馍|饺|包|饼|糕/.test(n)) return '主食';
+  if(/糖|甜|布丁|奶|果|拔丝|薯/.test(n)) return '甜点';
+  if(/肉|鸡|鱼|虾|排骨|牛|猪|羊|蛋|肠|鸭/.test(n)) return '荤菜';
+  return '素菜';
+}
+function readEditForm(){
+  if(!EDIT_DRAFT) return;
+  function g(id){ var e = document.getElementById(id); return e ? e.value : null; }
+  var v;
+  v = g('rName'); if(v !== null) EDIT_DRAFT.name = v;
+  v = g('rNeed'); if(v !== null) EDIT_DRAFT.need = v;
+  v = g('rSteps'); if(v !== null) EDIT_DRAFT.steps = v;
+  v = g('rIntro'); if(v !== null) EDIT_DRAFT.intro = v;
+  v = g('rTip'); if(v !== null) EDIT_DRAFT.tip = v;
+}
+function editSet(k, v){ readEditForm(); EDIT_DRAFT[k] = v; editRecipe(EDIT_ID, true); }
+function editAuto(){
+  readEditForm();
+  var n = (EDIT_DRAFT.name || '').trim();
+  if(!n){ toast('先写个菜名'); return; }
+  EDIT_DRAFT.level = guessLevel(n);
+  EDIT_DRAFT.time = guessTime(n);
+  EDIT_DRAFT.cat = guessCat(n);
+  editRecipe(EDIT_ID, true);
+  toast('按名字猜好了，不对就点别的');
+}
+function editQuick(name){
+  readEditForm();
+  EDIT_DRAFT.name = name;
+  EDIT_DRAFT.level = guessLevel(name);
+  EDIT_DRAFT.time = guessTime(name);
+  EDIT_DRAFT.cat = guessCat(name);
+  var hit = ALL().filter(function(x){ return x.name === name; })[0];
+  if(hit){
+    EDIT_DRAFT.level = hit.level || EDIT_DRAFT.level;
+    EDIT_DRAFT.time = hit.time || EDIT_DRAFT.time;
+    EDIT_DRAFT.cat = hit.cat || guessCat(hit.name);
+    if(!EDIT_DRAFT.need) EDIT_DRAFT.need = (hit.need || []).map(function(x){ return x.n + ' ' + x.a; }).join('\n');
+    if(!EDIT_DRAFT.steps) EDIT_DRAFT.steps = (hit.steps || []).join('\n');
+  }
+  editRecipe(EDIT_ID, true);
+  toast('填好了，看看对不对，不对直接点别的');
+}
+function editRecipe(id, keep){
+  if(!keep){
+    EDIT_ID = id || '';
+    NEW_IMG = null;
+    var r = id ? byId(id) : null;
+    if(r){
+      EDIT_DRAFT = {
+        name: r.name || '', time: r.time || 20, level: r.level || '中等',
+        cat: r.cat || guessCat(r.name || ''),
+        need: (r.need || []).map(function(x){ return x.n + ' ' + x.a; }).join('\n'),
+        steps: (r.steps || []).join('\n'), intro: r.intro || '', tip: r.tip || '',
+        advanced: (r.need || []).length > 0 || (r.steps || []).length > 0
+      };
+    } else {
+      EDIT_DRAFT = { name:'', time:20, level:'中等', cat:'', need:'', steps:'', intro:'', tip:'', advanced:false };
+    }
+  } else {
+    readEditForm();
+  }
+  var d = EDIT_DRAFT;
+  var curImg = (NEW_IMG !== null) ? NEW_IMG : ((EDIT_ID && (S.imgs || {})[EDIT_ID]) || '');
+  var taken = {};
+  ALL().forEach(function(x){ taken[x.name] = 1; });
+  var quick = QUICK_NAMES.filter(function(n){ return !taken[n]; }).slice(0, 22);
+  var head = '<div style="font-size:13px;color:#8a7a6d;margin:4px 0 6px">① 点一下要做的菜，名字自己就上去了</div>';
+  var h = '<h2>' + (EDIT_ID ? '改这道菜' : '加一道新菜') + '<button class="close" onclick="closeSheet()">关</button></h2>' + head;
+  h += '<div class="chips" style="margin-bottom:10px">' + quick.map(function(n){
+    return '<button class="chip' + (d.name === n ? ' on' : '') + '" onclick="editQuick(\'' + n + '\')">' + n + '</button>';
+  }).join('') + '</div>';
+  h += '<div class="row"><label>菜名</label><input id="rName" value="' + esc(d.name) + '" placeholder="也可以自己写，例：红烧鱼"></div>';
+  h += '<div style="margin:-2px 0 4px"><button class="btn mini ghost" onclick="editAuto()">按名字自动填难度/时间/分类</button></div>';
+  h += '<div style="font-size:13px;color:#8a7a6d;margin:12px 0 6px">② 有照片就选一张（没有也行，只显示菜名）</div>';
+  h += '<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">' +
+    '<label for="rImg" style="display:inline-block;padding:12px 18px;border-radius:12px;background:#fff1e6;color:#e8641f;font-size:15px;font-weight:600">从相册选一张</label>' +
+    '<input id="rImg" type="file" accept="image/*" onchange="pickImg(this)" style="display:none">' +
+    (curImg ? '<button class="btn mini gray" onclick="clearImg()">不要图片</button>' : '') + '</div>';
+  h += '<div id="rImgPrev" style="margin-top:8px">' + (curImg
+      ? '<img src="' + curImg + '" style="max-width:100%;border-radius:10px">'
+      : '<span style="font-size:12px;color:#a4968b">没图片就只显示菜名</span>') + '</div>';
+  h += '<div style="font-size:13px;color:#8a7a6d;margin:14px 0 6px">③ 难不难</div>';
+  h += '<div class="chips">' + ['简单','中等','偏难'].map(function(x){
+    return '<button class="chip' + (d.level === x ? ' on' : '') + '" onclick="editSet(\'level\',\'' + x + '\')">' + x + '</button>';
+  }).join('') + '</div>';
+  h += '<div style="font-size:13px;color:#8a7a6d;margin:12px 0 6px">④ 大概多久做好</div>';
+  h += '<div class="chips">' + [10,20,30,45,60,90].map(function(m){
+    return '<button class="chip' + (Number(d.time) === m ? ' on' : '') + '" onclick="editSet(\'time\',' + m + ')">' + m + ' 分钟</button>';
+  }).join('') + '</div>';
+  h += '<div style="font-size:13px;color:#8a7a6d;margin:12px 0 6px">⑤ 属于哪一类</div>';
+  h += '<div class="chips">' + CATS.map(function(x){
+    return '<button class="chip' + (d.cat === x ? ' on' : '') + '" onclick="editSet(\'cat\',\'' + x + '\')">' + x + '</button>';
+  }).join('') + '</div>';
+  h += '<div style="margin:16px 0 8px"><button class="btn ghost" style="width:100%" onclick="editSet(\'advanced\',' + (d.advanced ? 'false' : 'true') + ')">' +
+      (d.advanced ? '收起详细写法' : '想写详细点（可跳过）') + '</button></div>';
+  if(d.advanced){
+    h += '<div class="row" style="align-items:flex-start"><label style="padding-top:9px">用料</label><textarea id="rNeed" placeholder="每样一行，例：\n番茄 2个\n鸡蛋 3个">' + esc(d.need) + '</textarea></div>';
+    h += '<div class="row" style="align-items:flex-start"><label style="padding-top:9px">步骤</label><textarea id="rSteps" style="min-height:110px" placeholder="一步一行，例：\n鸡蛋打散\n热锅下蛋液">' + esc(d.steps) + '</textarea></div>';
+    h += '<div class="row" style="align-items:flex-start"><label style="padding-top:9px">简介</label><textarea id="rIntro" placeholder="一句话说明，可留空">' + esc(d.intro) + '</textarea></div>';
+    h += '<div class="row" style="align-items:flex-start"><label style="padding-top:9px">小贴士</label><textarea id="rTip" placeholder="火候、窍门，可留空">' + esc(d.tip) + '</textarea></div>';
+  }
+  h += '<div style="display:flex;gap:8px;margin-top:12px">' +
       '<button class="btn" style="flex:1" onclick="saveRecipe()">保存</button>' +
-      '<button class="btn gray" onclick="closeSheet()">算了</button></div>');
+      '<button class="btn gray" onclick="closeSheet()">算了</button></div>';
+  sheet(h);
 }
 function saveRecipe(){
-  var name = (document.getElementById('rName').value || '').trim();
-  if(!name){ toast('给菜起个名字'); return; }
-  var need = (document.getElementById('rNeed').value || '').split('\n').map(function(s){ return s.trim(); }).filter(Boolean).map(function(line){
+  readEditForm();
+  var d = EDIT_DRAFT || {};
+  var name = (d.name || '').trim();
+  if(!name){ toast('先点一个菜名，或者自己写一个'); return; }
+  var need = (d.need || '').split('\n').map(function(s){ return s.trim(); }).filter(Boolean).map(function(line){
     var m = line.match(/^([^\d\s]+)\s*(.*)$/);
     return m ? {n: m[1], a: m[2] || '适量'} : {n: line, a: '适量'};
   });
-  var steps = (document.getElementById('rSteps').value || '').split('\n').map(function(s){ return s.trim().replace(/^\d+[.、)]\s*/, ''); }).filter(Boolean);
+  var steps = (d.steps || '').split('\n').map(function(s){ return s.trim().replace(/^\d+[.、)]\s*/, ''); }).filter(Boolean);
   var obj = {
     id: EDIT_ID || ('c' + Date.now()),
     name: name,
-    time: parseInt(document.getElementById('rTime').value, 10) || 20,
-    level: document.getElementById('rLevel').value || '简单',
-    cat: (document.getElementById('rCat') || {}).value || '素菜',
+    time: parseInt(d.time, 10) || 20,
+    level: d.level || '中等',
+    cat: d.cat || guessCat(name),
     taste: ['自己做'],
     need: need,
     steps: steps,
-    intro: (document.getElementById('rIntro').value || '').trim(),
-    tip: (document.getElementById('rTip').value || '').trim(),
+    intro: (d.intro || '').trim(),
+    tip: (d.tip || '').trim(),
     custom: true
   };
   if(!S.imgs) S.imgs = {};
@@ -1107,6 +1205,7 @@ function saveRecipe(){
   save(); closeSheet(); render(); toast(EDIT_ID ? '改好了' : '加进菜谱了');
   if(syncOn()) push();
 }
+
 function delRecipe(id){
   if(!confirm('删掉这道菜？')) return;
   S.recipes = (S.recipes || []).filter(function(x){ return x.id !== id; });
