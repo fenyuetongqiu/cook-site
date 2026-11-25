@@ -140,6 +140,7 @@ nav,.search input,.qty button{border-radius:16px!important}
 .editb{margin-left:auto;border:1px solid var(--line);background:#fff;color:var(--brand);border-radius:999px;padding:1px 8px;font-size:11.5px;font-weight:600;cursor:pointer}
 .addrow{display:flex;gap:8px;margin-top:8px;align-items:center}
 .addrow input{flex:1;min-width:0}
+.st.cancel{background:#eee6de;color:#8a7a6e}
 .delx{border:0;background:#fdeceb;color:#c0392b;border-radius:999px;width:22px;height:22px;font-size:12px;line-height:1;cursor:pointer;vertical-align:middle}
 .brand .who{display:inline-block;margin-right:6px;padding:2px 8px;border-radius:999px;background:var(--soft);color:var(--brand);font-size:12px}
 #tourbox{position:fixed;left:10px;right:10px;bottom:14px;z-index:99999;background:var(--card);border-radius:20px;box-shadow:0 12px 34px rgba(60,40,20,.22);padding:14px 16px 12px;display:none;border:1px solid var(--line)}
@@ -724,6 +725,15 @@ function openSettings(){
 }
 applyTheme(curTheme());
 /* ---------- 统计删除 ---------- */
+function cancelOrder(id){
+  var o = byOrder(id);
+  if(!o) return;
+  if(o.status !== 'wait'){ toast('已经在做了，取消不了了'); return; }
+  var names = (o.items || []).map(function(it){ return it.name + (it.n > 1 ? ' ×' + it.n : ''); }).join('、');
+  if(!confirm('取消这一单？\n' + names)) return;
+  o.status = 'cancel'; o.upd = Date.now();
+  save(); render(); toast('取消了'); push();
+}
 function delStatOrder(id){
   var o = null;
   for(var i = 0; i < S.orders.length; i++){ if(S.orders[i].id === id){ o = S.orders[i]; break; } }
@@ -1119,10 +1129,11 @@ function viewMine(){
   if(mine.length){
     h += mine.map(function(o){
       var st = o.status;
-      var t = st === 'wait' ? '等做' : (st === 'doing' ? '在做' : (st === 'done' ? '做好了' : (st === 'reject' ? '被拒了' : st)));
+      var t = st === 'wait' ? '等做' : (st === 'doing' ? '在做' : (st === 'done' ? '做好了' : (st === 'reject' ? '被拒了' : (st === 'cancel' ? '已取消' : st))));
       return '<div style="padding:7px 0;border-top:1px solid var(--line)">' +
         '<div style="display:flex;align-items:center;gap:8px">' +
           '<span style="flex:1;font-size:13px">' + esc(o.items.map(function(it){ return it.name + (it.n > 1 ? ' ×' + it.n : ''); }).join('、')) + '</span>' +
+          (st === 'wait' ? '<button class="btn mini gray" onclick="cancelOrder(\'' + o.id + '\')">取消</button>' : '') +
           '<span class="st ' + st + '">' + t + '</span></div>' +
         (st === 'reject' && o.rejectNote ? '<div style="font-size:12px;color:#c0392b;margin-top:4px">厨师说：' + esc(o.rejectNote) + '</div>' : '') +
         '</div>';
@@ -1464,7 +1475,7 @@ function viewStats(){
 
 /* ---------- 做菜 ---------- */
 function viewCook(){
-  var all = liveOrders();
+  var all = liveOrders().filter(function(o){ return o.status !== 'cancel'; });
   var nw = all.filter(function(o){ return o.status === 'wait'; }).length;
   var nd = all.filter(function(o){ return o.status === 'doing'; }).length;
   var nn = all.filter(function(o){ return o.status === 'done'; }).length;
@@ -1753,21 +1764,21 @@ function editRecipe(id, keep){
   h += sec('大概多久做好', '4');
   h += '<div class="chips">' + [10,20,30,45,60,90].map(function(m){
     return '<button class="chip' + (Number(d.time) === m ? ' on' : '') + '" onclick="editSet(\'time\',' + m + ')">' + m + ' 分钟</button>';
-  }).join('') + '<button class="chip" onclick="showAdd('time')">别的分钟</button></div>' + addRowHTML('time', '自己填分钟数，比如 35', '好')';
+  }).join('') + '<button class="chip" onclick="showAdd(\'time\')">别的分钟</button></div>' + addRowHTML('time', '自己填分钟数，比如 35', '好');
   h += sec('属于哪一类', '5');
   h += '<div class="chips">' + allCats().map(function(x){
     return '<button class="chip' + (d.cat === x ? ' on' : '') + '" onclick="editSet(\'cat\',\'' + x + '\')">' + x + '</button>';
-  }).join('') + '<button class="chip" onclick="showAdd('cat')">＋ 新分类</button></div>' + addRowHTML('cat', '新分类叫啥？比如：凉菜', '加上')';
+  }).join('') + '<button class="chip" onclick="showAdd(\'cat\')">＋ 新分类</button></div>' + addRowHTML('cat', '新分类叫啥？比如：凉菜', '加上');
   h += sec('贴几个标签（可多选）', '6');
   h += '<div class="chips">' + allTags().map(function(t){
     return '<button class="chip' + ((d.taste || []).indexOf(t) >= 0 ? ' on' : '') + '" onclick="editTaste(\'' + t + '\')">' + t + '</button>';
-  }).join('') + '<button class="chip" onclick="showAdd('tag')">＋ 新标签</button></div>' + addRowHTML('tag', '新标签写啥？比如：下酒', '加上')';
+  }).join('') + '<button class="chip" onclick="showAdd(\'tag\')">＋ 新标签</button></div>' + addRowHTML('tag', '新标签写啥？比如：下酒', '加上');
   h += sec('要买啥（点一下加一份，点 − 减）', '7');
   h += '<div class="frmpick">' + ingPool().map(function(x){
     var c = needCount(x);
     return '<button class="chip' + (c ? ' on' : '') + '" onclick="needPick(\'' + esc(x) + '\', 1)">' + esc(x) +
       (c ? ' ×' + c + '<b class="del" onclick="event.stopPropagation();needPick(\'' + esc(x) + '\', -1)">−</b>' : '') + '</button>';
-  }).join('') + '<button class="chip" onclick="showAdd('need')">＋ 加一样</button></div>' + addRowHTML('need', '要买的叫啥？比如：青椒', '加上')';
+  }).join('') + '<button class="chip" onclick="showAdd(\'need\')">＋ 加一样</button></div>' + addRowHTML('need', '要买的叫啥？比如：青椒', '加上');
   h += '<div class="row" style="align-items:flex-start;margin-top:8px"><textarea id="rNeed" placeholder="也可以自己写，一样一行，比如：番茄 2个">' + esc(d.need) + '</textarea></div>';
   h += sec('咋做（一步一行）', '8');
   h += '<div class="row" style="align-items:flex-start"><textarea id="rSteps" style="min-height:110px" placeholder="例：&#10;鸡蛋打散&#10;热锅下蛋液炒散">' + esc(d.steps) + '</textarea></div>';
@@ -1929,7 +1940,7 @@ function viewInv(){
   h += '<div class="frmpick">' + pool.map(function(x){
     var on = S.inv[x] != null;
     return '<button class="chip' + (on ? ' on' : '') + '" onclick="tapIng(\'' + esc(x) + '\')">' + esc(x) + (on ? ' ✓' : '') + '</button>';
-  }).join('') + '<button class="chip" onclick="showAdd('ing')">＋ 新的一样</button></div>' + addRowHTML('ing', '家里还有啥？比如：青椒', '加上')';
+  }).join('') + '<button class="chip" onclick="showAdd(\'ing\')">＋ 新的一样</button></div>' + addRowHTML('ing', '家里还有啥？比如：青椒', '加上');
   h += '<div class="meta" style="margin:6px 0 10px;color:var(--ink2);font-size:12px">共 ' + names.length + ' 样</div>';
   if(!names.length) h += '<div class="empty">还没记材料</div>';
   names.forEach(function(n){
