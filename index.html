@@ -414,6 +414,7 @@ function toast(m){
 }
 function pad(n){ return (n < 10 ? '0' : '') + n; }
 function byId(id){ var a = ALL(); for(var i=0;i<a.length;i++){ if(a[i].id === id) return a[i]; } return null; }
+function liveOrders(){ return (S.orders || []).filter(function(o){ return o.status !== 'deleted'; }); }
 function byOrder(id){ for(var i=0;i<S.orders.length;i++){ if(S.orders[i].id === id) return S.orders[i]; } return null; }
 function haveIng(n){ return Object.prototype.hasOwnProperty.call(S.inv, n); }
 function missingOf(r){ var m=[]; for(var i=0;i<r.need.length;i++){ if(!haveIng(r.need[i].n)) m.push(r.need[i].n + ' ' + friendlyAmt(r.need[i].a)); } return m; }
@@ -707,8 +708,8 @@ function delStatOrder(id){
   if(!o) return;
   var names = (o.items || []).map(function(i){ return i.name; }).join('、');
   if(!confirm('删掉这条记录？\n' + names)) return;
-  tomb(id, o.upd || o.doneTs);
-  S.orders = S.orders.filter(function(x){ return x.id !== id; });
+  o.status = 'deleted';
+  o.upd = Date.now();
   save(); render(); toast('删掉了'); push();
 }
 function clearStats(){
@@ -718,9 +719,7 @@ function clearStats(){
   var v = prompt('怕误触，输入「清空」两个字再点确定（不想删就点取消）');
   if(v === null) return;
   if(String(v).trim() !== '清空'){ toast('没删，你放心'); return; }
-  var ids = {};
-  done.forEach(function(o){ ids[o.id] = 1; tomb(o.id, o.upd || o.doneTs); });
-  S.orders = S.orders.filter(function(o){ return !ids[o.id]; });
+  done.forEach(function(o){ o.status = 'deleted'; o.upd = Date.now(); });
   save(); render(); toast('排行清空了'); push();
 }
 function render(){
@@ -1047,7 +1046,7 @@ function viewStats(){
 
 /* ---------- 做菜 ---------- */
 function viewCook(){
-  var all = S.orders;
+  var all = liveOrders();
   var nw = all.filter(function(o){ return o.status === 'wait'; }).length;
   var nd = all.filter(function(o){ return o.status === 'doing'; }).length;
   var nn = all.filter(function(o){ return o.status === 'done'; }).length;
