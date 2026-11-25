@@ -996,7 +996,9 @@ function seedOf(str){
   return h;
 }
 function avoidDish(r){
-  var no = (meLike().no || '').replace(/\s+/g, '');
+  var rawNo = meLike().no;
+  if(Array.isArray(rawNo)) rawNo = rawNo.join('，');
+  var no = String(rawNo || '').replace(/\s+/g, '');
   if(!no) return false;
   var words = no.split(/[，,、;；]+/).filter(function(w){ return w; });
   var hay = r.name + ' ' + r.taste.join(' ') + ' ' + r.need.map(function(x){ return x.n; }).join(' ');
