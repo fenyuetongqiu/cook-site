@@ -9,7 +9,7 @@
 :root{
   --bg:#fff8f0; --card:#ffffff; --ink:#3a2e28; --ink2:#8a7a6e; --line:#f0e2d2;
   --brand:#e8752c; --brand2:#ffb163; --ok:#3f9c5a; --bad:#d9534f;
-  --soft:var(--soft); --softink:var(--softink); --soft2:var(--soft2); --gray1:var(--gray1); --line2:var(--line2);
+  --soft:#fff1e2; --softink:#a1621f; --soft2:#fff6e6; --gray1:#f2e7db; --line2:#f3e2c8;
   --shadow:0 2px 10px rgba(120,80,40,.08); --r:18px;
 }
 body[data-theme="mint"]{--bg:#f4fbf7;--ink:#28322d;--ink2:#7d8a83;--line:#dcece3;--brand:#37a173;--brand2:#8ed8b6;--soft:#e6f6ee;--softink:#2c7a58;--soft2:#f2fbf6;--gray1:#e7efe9;--line2:#d6e9de;--shadow:0 2px 10px rgba(60,120,90,.08)}
@@ -373,7 +373,9 @@ var COMMON_INGS = ['番茄','鸡蛋','土豆','青椒','猪肉','五花肉','猪
 function ALL(){
   var map = {}, order = [];
   SEED_RECIPES.forEach(function(r){ if(!map[r.id]) order.push(r.id); map[r.id] = r; });
+  var dead = (S && S.delR) ? S.delR : {};
   (S && S.recipes ? S.recipes : []).forEach(function(r){
+    if(dead[r.id]) return;
     if(!map[r.id]) order.push(r.id);
     map[r.id] = r;
   });
@@ -394,6 +396,7 @@ function loadData(){
   if(!d || typeof d !== 'object') d = {inv:{}, orders:[], seq:1, ts:0};
   if(!d.inv) d.inv = {};
   if(!d.del) d.del = {};
+  if(!d.delR) d.delR = {};
   if(!d.orders) d.orders = [];
   if(!d.recipes) d.recipes = [];
   if(!d.imgs) d.imgs = {};
@@ -616,6 +619,15 @@ function mergeRemote(remote){
       }
     }
   }
+  var rdelR = remote.delR || {};
+  if(!S.delR) S.delR = {};
+  Object.keys(rdelR).forEach(function(k){
+    if((rdelR[k] || 0) > (S.delR[k] || 0)){ S.delR[k] = rdelR[k]; changed = true; }
+  });
+  if(S.recipes && S.recipes.length){
+    var keep = S.recipes.filter(function(r){ return !S.delR[r.id]; });
+    if(keep.length !== S.recipes.length){ S.recipes = keep; changed = true; }
+  }
   var rdel = remote.del || {};
   Object.keys(rdel).forEach(function(k){
     if((rdel[k] || 0) > ((S.del || {})[k] || 0)){ S.del = S.del || {}; S.del[k] = rdel[k]; }
@@ -651,7 +663,7 @@ function push(){                      // 先拉、合并、再推
     .catch(function(){ return null; })
     .then(function(remote){
       if(remote){ mergeRemote(remote); remoteImgsVer = Number(remote.imgsVer) || 0; }
-      snapshot = {inv:S.inv, orders:S.orders, recipes:S.recipes, seq:S.seq, ts:Math.max(Date.now(), S.ts || 0), imgsVer:S.imgsVer || 0, cats:S.cats || null, tags:S.tags || null, ingList:S.ingList || [], users:S.users || {}, del:S.del || {}, v:7};
+      snapshot = {inv:S.inv, orders:S.orders, recipes:S.recipes, seq:S.seq, ts:Math.max(Date.now(), S.ts || 0), imgsVer:S.imgsVer || 0, cats:S.cats || null, tags:S.tags || null, ingList:S.ingList || [], users:S.users || {}, del:S.del || {}, delR:S.delR || {}, v:8};
       return dataPut(snapshot);
     })
     .then(function(){
@@ -1892,6 +1904,7 @@ function saveRecipe(){
     tip: (d.tip || '').trim(),
     custom: true
   };
+  if(S.delR && S.delR[obj.id]) delete S.delR[obj.id];
   if(!S.imgs) S.imgs = {};
   if(NEW_IMG !== null){
     if(NEW_IMG){ S.imgs[obj.id] = NEW_IMG; } else { delete S.imgs[obj.id]; }
@@ -1911,6 +1924,8 @@ function saveRecipe(){
 function delRecipe(id){
   var sd = isSeed(id);
   if(!confirm(sd ? '这道菜恢复成原来的样子？（你改的内容会没）' : '删掉这道菜？')) return;
+  if(!S.delR) S.delR = {};
+  S.delR[id] = Date.now();
   S.recipes = (S.recipes || []).filter(function(x){ return x.id !== id; });
   if((S.imgs || {})[id]){ delete S.imgs[id]; S.imgsVer = Date.now(); }
   save(); closeSheet(); render(); toast(sd ? '恢复原样了' : '删了');
