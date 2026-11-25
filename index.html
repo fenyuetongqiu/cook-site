@@ -380,6 +380,7 @@ function loadData(){
   try{ d = JSON.parse(localStorage.getItem(KEY) || 'null'); }catch(e){ d = null; }
   if(!d || typeof d !== 'object') d = {inv:{}, orders:[], seq:1, ts:0};
   if(!d.inv) d.inv = {};
+  if(!d.del) d.del = {};
   if(!d.orders) d.orders = [];
   if(!d.recipes) d.recipes = [];
   if(!d.imgs) d.imgs = {};
@@ -590,13 +591,19 @@ function mergeRemote(remote){
     if(remote.tags && remote.tags.length){ S.tags = remote.tags; changed = true; }
     if(remote.ingList && remote.ingList.length){ S.ingList = remote.ingList; changed = true; }
   }
+  var rdel = remote.del || {};
+  Object.keys(rdel).forEach(function(k){
+    if((rdel[k] || 0) > ((S.del || {})[k] || 0)){ S.del = S.del || {}; S.del[k] = rdel[k]; }
+  });
+  function dead(o){ return (S.del && S.del[o.id]) ? (S.del[o.id] >= (o.upd || 0)) : false; }
   var map = {};
-  (S.orders || []).forEach(function(o){ map[o.id] = o; });
+  (S.orders || []).forEach(function(o){ if(!dead(o)) map[o.id] = o; });
   (remote.orders || []).forEach(function(ro){
+    if(dead(ro)) return;
     var lo = map[ro.id];
     if(!lo || (ro.upd || 0) > (lo.upd || 0)){ map[ro.id] = ro; changed = true; }
   });
-  var arr = Object.keys(map).map(function(k){ return map[k]; });
+  var arr = Object.keys(map).map(function(k){ return map[k]; }).filter(function(o){ return !dead(o); });
   arr.sort(function(a,b){ return (b.upd||0) - (a.upd||0); });
   if(arr.length !== (S.orders || []).length) changed = true;
   S.orders = arr;
@@ -619,7 +626,7 @@ function push(){                      // 先拉、合并、再推
     .catch(function(){ return null; })
     .then(function(remote){
       if(remote){ mergeRemote(remote); remoteImgsVer = Number(remote.imgsVer) || 0; }
-      snapshot = {inv:S.inv, orders:S.orders, recipes:S.recipes, seq:S.seq, ts:Math.max(Date.now(), S.ts || 0), imgsVer:S.imgsVer || 0, cats:S.cats || null, tags:S.tags || null, ingList:S.ingList || [], v:5};
+      snapshot = {inv:S.inv, orders:S.orders, recipes:S.recipes, seq:S.seq, ts:Math.max(Date.now(), S.ts || 0), imgsVer:S.imgsVer || 0, cats:S.cats || null, tags:S.tags || null, ingList:S.ingList || [], del:S.del || {}, v:6};
       return dataPut(snapshot);
     })
     .then(function(){
@@ -700,6 +707,7 @@ function delStatOrder(id){
   if(!o) return;
   var names = (o.items || []).map(function(i){ return i.name; }).join('、');
   if(!confirm('删掉这条记录？\n' + names)) return;
+  tomb(id, o.upd || o.doneTs);
   S.orders = S.orders.filter(function(x){ return x.id !== id; });
   save(); render(); toast('删掉了'); push();
 }
@@ -711,7 +719,7 @@ function clearStats(){
   if(v === null) return;
   if(String(v).trim() !== '清空'){ toast('没删，你放心'); return; }
   var ids = {};
-  done.forEach(function(o){ ids[o.id] = 1; });
+  done.forEach(function(o){ ids[o.id] = 1; tomb(o.id, o.upd || o.doneTs); });
   S.orders = S.orders.filter(function(o){ return !ids[o.id]; });
   save(); render(); toast('排行清空了'); push();
 }
@@ -802,6 +810,7 @@ function catOf(r){
   if(/肉|鸡|鱼|虾|排骨|牛|猪|羊|蛋/.test(n)) return '荤菜';
   return '素菜';
 }
+function tomb(id, upd){ S.del = S.del || {}; S.del[id] = Math.max(Date.now(), (upd || 0) + 1); }
 function madeN(id){
   var n = 0;
   (S.orders || []).forEach(function(o){
