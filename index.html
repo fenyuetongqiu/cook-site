@@ -140,6 +140,13 @@ nav,.search input,.qty button{border-radius:16px!important}
 .editb{margin-left:auto;border:1px solid var(--line);background:#fff;color:var(--brand);border-radius:999px;padding:1px 8px;font-size:11.5px;font-weight:600;cursor:pointer}
 .delx{border:0;background:#fdeceb;color:#c0392b;border-radius:999px;width:22px;height:22px;font-size:12px;line-height:1;cursor:pointer;vertical-align:middle}
 .brand .who{display:inline-block;margin-right:6px;padding:2px 8px;border-radius:999px;background:var(--soft);color:var(--brand);font-size:12px}
+#tourbox{position:fixed;left:10px;right:10px;bottom:14px;z-index:99999;background:var(--card);border-radius:20px;box-shadow:0 12px 34px rgba(60,40,20,.22);padding:14px 16px 12px;display:none;border:1px solid var(--line)}
+#tourbox.on{display:block}
+#tourbox .tstep{font-size:12px;color:var(--brand);font-weight:600}
+#tourbox .ttitle{font-size:16px;font-weight:700;margin:3px 0 4px;color:var(--ink)}
+#tourbox .ttext{font-size:13px;color:var(--ink2);line-height:1.55}
+#tourbox .tacts{display:flex;gap:8px;justify-content:flex-end;margin-top:11px}
+.tour-hit{box-shadow:0 0 0 3px var(--brand),0 8px 22px rgba(0,0,0,.14)!important;position:relative;z-index:9000;border-radius:18px}
 </style>
 </head>
 <body>
@@ -147,6 +154,7 @@ nav,.search input,.qty button{border-radius:16px!important}
 <main id="main"></main>
 <div class="bar" id="bar"></div>
 <div class="mask" id="mask"><div class="sheet" id="sheet"></div></div>
+<div id="tourbox"></div>
 <div class="toast" id="toast"></div>
 <script>
 'use strict';
@@ -703,7 +711,8 @@ function openSettings(){
         '<b>' + t.name + '</b></button>';
     }).join('') + '</div>' +
     '<div class="tipbar" style="margin-top:12px">点一下就能换，只存在这台手机上，随时能改回来。</div>' +
-    '<div class="tipbar">想删错记的菜？去「统计」里每一条右边有个 ✕。</div>';
+    '<div class="tipbar">想删错记的菜？去「统计」里每一条右边有个 ✕。</div>' +
+    '<button class="btn ghost" style="width:100%;margin-top:10px" onclick="closeSheet();startTour(CONF.role, true)">再看一遍新手引导</button>';
   sheet(h);
 }
 applyTheme(curTheme());
@@ -727,6 +736,81 @@ function clearStats(){
   if(String(v).trim() !== '清空'){ toast('没删，你放心'); return; }
   done.forEach(function(o){ o.status = 'deleted'; o.upd = Date.now(); });
   save(); render(); toast('排行清空了'); push();
+}
+/* ---------- 新手引导 ---------- */
+var TOUR = null;
+var TOUR_STEPS = {
+  member: [
+    {tab:'order', sel:'.grid .card', title:'这儿就是点菜的地方', text:'每张卡是一道菜，照片、多久能做、难不难都写着。'},
+    {tab:'order', sel:'.grid .card .btn.mini', title:'点「＋ 点一份」就是选上它', text:'选上了会变成 − 1 ＋，想多吃两份就再点 ＋，点 − 可以减到 0。'},
+    {tab:'order', sel:'.search', title:'找不到就搜', text:'上面能搜菜名、食材、口味；右边能按分类（荤菜、素菜、汤、甜点…）筛。'},
+    {tab:'order', sel:'.miss', title:'材料不够会告诉你', text:'「缺：番茄 2个」这种就是家里少东西；写「材料齐全 ✓」的现在就能做。'},
+    {tab:'order', sel:'#bar .btn', title:'选好了点「去下单」', text:'右下角这个按钮，点了能挑什么时候吃、写备注（比如少放辣）。'},
+    {tab:'order', sel:'#checkoutCancel', before:'tourOpenCheckout', title:'不想下单就点「再想想」', text:'这就是取消，点了啥也不会发生，菜退回去重新挑。'},
+    {tab:'order', sel:'#bar', title:'下单后看进度', text:'卡片上会显示「等做 / 在做 / 做好了 / 被拒了」，厨师拒了会写原因。'}
+  ],
+  cook: [
+    {tab:'cook', sel:'.order', title:'有人点的菜都在「做菜」里', text:'每张单子写着「谁点的」，点「看点啥 & 咋做」能看用料和步骤。'},
+    {tab:'cook', sel:'.order .acts .btn.mini', title:'开始做 → 做好了', text:'点「开始做」表示你在忙这道；做完点「做好了」，统计里就会涨一次。'},
+    {tab:'cook', sel:'.order .acts', title:'做不了就「拒单」', text:'点拒单会弹面板，选个原因或自己写一句，点菜那边能看到。'},
+    {tab:'menu', sel:'nav [data-tab="menu"]', title:'菜谱：加菜、改菜', text:'「＋ 加一道新菜」能加照片、分类、标签、要买啥、咋做；每道菜的「改」也能改。'},
+    {tab:'inv', sel:'nav [data-tab="inv"]', title:'有啥菜：家里剩啥', text:'点一下就标上「有」，点菜那边就知道哪些菜现在能做；缺的东西写这儿。'},
+    {tab:'stats', sel:'nav [data-tab="stats"]', title:'统计：做了多少', text:'周 / 月 / 年 / 全部，还有「点得最多的菜」排行，错记的可以删。'},
+    {tab:'cook', sel:'[onclick*="openSettings"]', title:'换肤 + 再看一遍', text:'右上角「换肤」有 5 套颜色，也能在这重看新手引导。'}
+  ]
+};
+function tourFlagKey(name){ return 'kitchen-tour-' + (name || 'x'); }
+function tourDone(name){ try{ return localStorage.getItem(tourFlagKey(name)) === '1'; }catch(e){ return true; } }
+function startTour(role, force){
+  var r = role || CONF.role;
+  if(!force && tourDone(CONF.user)) return;
+  var steps = TOUR_STEPS[r] || [];
+  if(!steps.length) return;
+  TOUR = {role:r, i:0, steps:steps};
+  tourPaint();
+}
+function tourOpenCheckout(){
+  if(!Object.keys(CART).length){
+    var r = ALL().filter(cookable)[0] || ALL()[0];
+    if(r) CART[r.id] = 1;
+  }
+  openCheckout();
+  var b = document.querySelector('#sheet .btn.gray');
+  if(b && !b.id) b.id = 'checkoutCancel';
+}
+function tourPaint(){
+  var old = document.querySelector('.tour-hit'); if(old) old.classList.remove('tour-hit');
+  if(!TOUR) return;
+  var st = TOUR.steps[TOUR.i];
+  var box = document.getElementById('tourbox');
+  if(!box) return;
+  if(st.tab && TAB !== st.tab){ TAB = st.tab; render(); }
+  if(st.before && typeof window[st.before] === 'function'){ try{ window[st.before](); }catch(e){} }
+  var el = st.sel ? document.querySelector(st.sel) : null;
+  if(el){
+    el.classList.add('tour-hit');
+    try{ el.scrollIntoView({block:'center', behavior:'smooth'}); }catch(e){ try{ el.scrollIntoView(); }catch(e2){} }
+  }
+  var last = TOUR.i === TOUR.steps.length - 1;
+  box.innerHTML = '<div class="tstep">第 ' + (TOUR.i + 1) + ' / ' + TOUR.steps.length + ' 步</div>' +
+    '<div class="ttitle">' + st.title + '</div>' +
+    '<div class="ttext">' + st.text + '</div>' +
+    '<div class="tacts"><button class="btn ghost" onclick="endTour()">跳过</button>' +
+    '<button class="btn" onclick="tourNext()">' + (last ? '知道了' : '下一步') + '</button></div>';
+  box.classList.add('on');
+}
+function tourNext(){
+  if(!TOUR) return;
+  TOUR.i++;
+  if(TOUR.i >= TOUR.steps.length){ endTour(); return; }
+  tourPaint();
+}
+function endTour(){
+  var old = document.querySelector('.tour-hit'); if(old) old.classList.remove('tour-hit');
+  var box = document.getElementById('tourbox'); if(box){ box.classList.remove('on'); box.innerHTML = ''; }
+  try{ localStorage.setItem(tourFlagKey(CONF.user), '1'); }catch(e){}
+  TOUR = null;
+  closeSheet();
 }
 function render(){
   if(!CONF.role){ renderLogin(); return; }
@@ -784,18 +868,20 @@ function doLogin(){
   S.users = S.users || {};
   var u = S.users[name];
   var role = u ? u.role : LOGIN_ROLE;
+  var isNew = !u;
   if(!u){
     S.users[name] = {role:role, ts:Date.now()};
     save();
   }
-  enterAs(name, role);
+  enterAs(name, role, isNew);
 }
-function enterAs(name, role){
+function enterAs(name, role, isNew){
   CONF.user = name; CONF.role = role; saveConf();
   TAB = (role === 'cook' ? 'cook' : 'order');
   save(); render(); window.scrollTo(0, 0);
   if(syncOn()){ pull().then(function(){ render(); }); }
   toast((role === 'cook' ? '厨师 ' : '') + name + ' 进来了');
+  if(isNew){ setTimeout(function(){ startTour(role, true); }, 400); }
 }
 function logout(){
   CONF.user = ''; CONF.role = ''; saveConf(); CART = {}; render();
