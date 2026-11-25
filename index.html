@@ -1028,6 +1028,10 @@ function planDay(){
     if(meal === '早餐'){
       var bMain = cats['主食'].filter(function(r){ return /面|粥|粉|包|饺|饼|馍|馒头|油条|饭团|米线|馄饨/.test(r.name) && !/凉/.test(r.name); });
       var bSide = cats['小吃'].concat(cats['甜点']).filter(function(r){ return !/汤|糖水|羹|冻/.test(r.name); });
+      if(!bSide.length){
+        bSide = cats['主食'].filter(function(r){ return /饺|包|馒头|馍|饼|蛋/.test(r.name); });
+      }
+      if(!bSide.length){ bSide = cats['素菜']; }
       dishes = pick(bMain.length ? bMain : cats['主食'], 1).concat(pick(bSide, 1));
     } else {
       dishes = pick(cats['荤菜'], 2).concat(pick(cats['素菜'], 1), pick(cats['汤'], 1));
