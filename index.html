@@ -853,6 +853,7 @@ function renderLogin(){
         '</div></div>' +
         '<button class="btn" style="width:100%;margin-top:8px" onclick="doLogin()">进来</button>' +
         '<div style="font-size:12px;color:var(--ink2);margin-top:8px">一个名字一个密码，厨师端和点菜端都能进；老账号第一次登录会把这次的密码记下来。</div>' +
+        '<button class="btn ghost" style="width:100%;margin-top:8px" onclick="openForgot()">忘记密码？点这里换一个</button>' +
       '</div>' +
       '<div style="display:flex;gap:8px;margin-top:14px">' +
         '<button class="btn ghost" style="flex:1" onclick="openSync()">同步设置</button>' +
@@ -874,6 +875,39 @@ function hashPw(str){
   var h = 5381;
   for(var i = 0; i < str.length; i++){ h = ((h << 5) + h + str.charCodeAt(i)) >>> 0; }
   return 'h' + h.toString(36) + 'x' + str.length;
+}
+var FGT_A = 0, FGT_B = 0;
+function openForgot(){
+  FGT_A = 2 + Math.floor(Math.random() * 8);
+  FGT_B = 3 + Math.floor(Math.random() * 7);
+  var h = '<h2>忘了密码 <button class="close" onclick="closeSheet()">关</button></h2>' +
+    '<div class="tipbar">答一道小题就能把密码换成新的，家里自己用，不用那么严。</div>' +
+    '<div class="row"><label>名字</label><input id="fname" placeholder="你注册时用的名字" maxlength="12"></div>' +
+    '<div class="row"><label>小题</label><div style="flex:1;font-size:16px;display:flex;align-items:center;gap:8px">' + FGT_A + ' + ' + FGT_B + ' = <input id="fans" style="width:96px" placeholder="答案"></div></div>' +
+    '<div class="row"><label>新密码</label><input id="fpw" type="password" placeholder="至少 2 位" maxlength="20"></div>' +
+    '<button class="btn" style="width:100%;margin-top:10px" onclick="doForgot()">换成这个密码</button>';
+  sheet(h);
+}
+function doForgot(){
+  var ne = document.getElementById('fname'), ae = document.getElementById('fans'), pe = document.getElementById('fpw');
+  var name = ((ne && ne.value) || '').trim().replace(/\s+/g, ' ');
+  var ans = ((ae && ae.value) || '').trim();
+  var npw = (pe && pe.value) || '';
+  if(!name){ toast('先写名字'); return; }
+  var u = (S.users || {})[name];
+  if(!u){ toast('没有这个账号，先注册一个吧'); return; }
+  if(parseInt(ans, 10) !== FGT_A + FGT_B){ toast('答案不对，再算一次'); return; }
+  if(npw.length < 2){ toast('新密码至少 2 位'); return; }
+  u.pw = hashPw(npw);
+  u.ts = Date.now();
+  save();
+  push();
+  closeSheet();
+  var i = document.getElementById('uname');
+  if(i) i.value = name;
+  var pi = document.getElementById('upw');
+  if(pi) pi.focus();
+  toast('换好了，用新密码进来');
 }
 function doLogin(){
   var i = document.getElementById('uname');
