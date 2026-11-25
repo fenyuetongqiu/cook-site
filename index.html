@@ -135,6 +135,7 @@ nav,.search input,.qty button{border-radius:16px!important}
 .swatch.on{border-color:var(--brand)!important;box-shadow:0 0 0 3px var(--soft)}
 .swatch .dot{width:16px;height:16px;border-radius:50%;display:inline-block;flex:0 0 auto}
 .swatch b{font-weight:600}
+.ic{width:15px;height:15px;vertical-align:-2px;stroke:currentColor;fill:none;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round;margin-right:5px}
 .editb{margin-left:auto;border:1px solid var(--line);background:#fff;color:var(--brand);border-radius:999px;padding:1px 8px;font-size:11.5px;font-weight:600;cursor:pointer}
 .delx{border:0;background:#fdeceb;color:#c0392b;border-radius:999px;width:22px;height:22px;font-size:12px;line-height:1;cursor:pointer;vertical-align:middle}
 </style>
@@ -673,9 +674,13 @@ function setTheme(id){
   try{ localStorage.setItem(THEME_KEY, id); }catch(e){}
   applyTheme(id); render(); toast('换好了');
 }
+var IC_SWATCH = '<svg class="ic" viewBox="0 0 24 24"><circle cx="9" cy="12" r="6"/><circle cx="15" cy="12" r="6"/></svg>';
+var IC_CAM = '<svg class="ic" viewBox="0 0 24 24"><rect x="3" y="6.5" width="18" height="13" rx="3"/><circle cx="12" cy="13" r="3.6"/><path d="M8.5 6.5l1.2-2.2h4.6l1.2 2.2"/></svg>';
+var IC_PEN = '<svg class="ic" viewBox="0 0 24 24"><path d="M4.5 19.5l3.6-.8L19.5 7.3 16.7 4.5 5.3 15.9z"/><path d="M15.2 6l2.8 2.8"/></svg>';
+var IC_PLUS = '<svg class="ic" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>';
 function openSettings(){
   var cur = curTheme();
-  var h = '<h2>🎨 换个颜色 <button class="close" onclick="closeSheet()">关</button></h2>' +
+  var h = '<h2>' + IC_SWATCH + '换个颜色 <button class="close" onclick="closeSheet()">关</button></h2>' +
     '<div class="themeGrid">' + THEMES.map(function(t){
       return '<button class="swatch' + (t.id === cur ? ' on' : '') + '" onclick="setTheme(\'' + t.id + '\')">' +
         '<span class="dot" style="background:' + t.c1 + '"></span>' +
@@ -727,7 +732,7 @@ function renderLogin(){
       '<h1>家里小厨房</h1>' +
       '<p>点菜 · 做菜 · 上传后两台设备共用一个订单本</p>' +
       '<div class="roles">' +
-        '<div class="role" onclick="pickRole(\'order\')"><div class="big">📝</div><div><b>我是点菜的</b><span>看有啥菜、选菜、下单、预约</span></div></div>' +
+        '<div class="role" onclick="pickRole(\'order\')"><div class="big"></div><div><b>我是点菜的</b><span>看有啥菜、选菜、下单、预约</span></div></div>' +
         '<div class="role" onclick="pickRole(\'cook\')"><div class="big">🍳</div><div><b>我是做饭的</b><span>看订单、开始做、做好了、看做法</span></div></div>' +
       '</div>' +
       '<div style="display:flex;gap:8px;margin-top:18px">' +
@@ -741,7 +746,7 @@ function renderLogin(){
 function pickRole(r){ CONF.role = r; saveConf(); TAB = (r === 'cook' ? 'cook' : 'order'); render(); if(syncOn()){ pull().then(render); } }
 
 function renderHeader(){
-  var badge = '<button class="mini" style="margin-right:6px" onclick="openSettings()">⚙ 换肤</button>' +
+  var badge = '<button class="mini" style="margin-right:6px" onclick="openSettings()">' + IC_SWATCH + '换肤</button>' +
     '<span id="syncBadge" class="syncbadge ' + (SYNC.state === 'on' ? '' : (SYNC.state === 'err' ? 'err' : 'off')) + '">' + esc(SYNC.msg) + '</span>';
   $('#hdr').innerHTML =
     '<div class="brand"><span class="dot"></span>家里小厨房' +
@@ -1124,13 +1129,13 @@ function viewMenu(){
   var h = '<div class="search"><input id="q" placeholder="搜菜谱…" value="' + esc(Q) + '" oninput="onQ(this.value)"></div>';
   if(CONF.role === 'cook'){
     h += '<div style="display:flex;gap:8px;margin-bottom:10px">' +
-      '<button class="btn" style="flex:1" onclick="editRecipe(\'\')">＋ 加一道新菜</button></div>';
+      '<button class="btn" style="flex:1" onclick="editRecipe(\'\')">' + IC_PLUS + '加一道新菜</button></div>';
   }
   h += '<div class="grid">' + list.map(function(r){
       var madeM = madeN(r.id);
       return '<div class="card" onclick="openRecipe(\'' + r.id + '\')" style="cursor:pointer">' + thumbHTML(r.id) +
         '<h3 style="display:flex;align-items:center;gap:6px">' + esc(r.name) +
-          (CONF.role === 'cook' ? '<button class="editb" onclick="event.stopPropagation();editRecipe(\'' + r.id + '\')">✏️ 改</button>' : '') + '</h3>' +
+          (CONF.role === 'cook' ? '<button class="editb" onclick="event.stopPropagation();editRecipe(\'' + r.id + '\')">' + IC_PEN + '改</button>' : '') + '</h3>' +
         '<div class="meta"><span class="tag">' + (r.time || '?') + ' 分钟</span><span class="tag">' + esc(r.level || '家常') + '</span>' +
         (madeM ? '<span class="tag" style="background:#fff1e6;color:var(--brand)">做过 ' + madeM + ' 次</span>' : '') +
         (isOverride(r.id) ? '<span class="tag taste">改过</span>' : (r.custom ? '<span class="tag taste">自己加的</span>' : '')) +
@@ -1268,13 +1273,13 @@ function editRecipe(id, keep){
   var head = '<div class="frmhead"><b>今天想给家里做点啥？</b>' +
     '<span>点几下就行，不想写的都可以跳过</span></div>';
   var sec = function(t, n){ return '<div class="frmsec">' + (n ? '<i>' + n + '</i>' : '') + t + '</div>'; };
-  var h = '<h2>' + (EDIT_ID ? '改这道菜 ✏️' : '加一道新菜 ✨') + '<button class="close" onclick="closeSheet()">关</button></h2>' + head;
+  var h = '<h2>' + (EDIT_ID ? '改这道菜' : '加一道菜') + '<button class="close" onclick="closeSheet()">关</button></h2>' + head;
   h += sec('叫啥名字', '1');
   h += '<div style="display:flex;gap:6px;align-items:center">' +
     '<input id="rName" value="' + esc(d.name) + '" placeholder="点这里写，例：红烧鱼" style="flex:1" onchange="editAuto()"></div>';
   h += sec('有照片就选一张（没有就只显示菜名）', '2');
   h += '<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">' +
-    '<label for="rImg" style="display:inline-flex;align-items:center;gap:6px;padding:12px 20px;border-radius:16px;background:linear-gradient(135deg,#ffe0b8,#ffc79b);color:#7a4415;font-size:15px;font-weight:600;box-shadow:0 3px 10px rgba(240,168,106,.35)">📷 从相册选一张</label>' +
+    '<label for="rImg" style="display:inline-flex;align-items:center;gap:6px;padding:12px 20px;border-radius:16px;background:linear-gradient(135deg,#ffe0b8,#ffc79b);color:#7a4415;font-size:15px;font-weight:600;box-shadow:0 3px 10px rgba(240,168,106,.35)">' + IC_CAM + '从相册选一张</label>' +
     '<input id="rImg" type="file" accept="image/*" onchange="pickImg(this)" style="display:none">' +
     (curImg ? '<button class="btn mini gray" onclick="clearImg()">不要图片</button>' : '') + '</div>';
   h += '<div id="rImgPrev" style="margin-top:8px">' + (curImg
@@ -1416,7 +1421,7 @@ function saveRecipe(){
   } else {
     S.recipes.push(obj);
   }
-  save(); closeSheet(); render(); toast(EDIT_ID ? '改好了 ✅' : '加进菜谱了 ✅');
+  save(); closeSheet(); render(); toast(EDIT_ID ? '改好了' : '加进菜谱了');
   if(syncOn()) push();
 }
 
