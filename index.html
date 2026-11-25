@@ -1009,13 +1009,13 @@ function prefRank(list, seed){
     var hit = 0;
     var hayText = r.name + ' ' + r.taste.join(' ') + ' ' + (r.cat || '');
     tags.forEach(function(t){ if(hayText.indexOf(t) >= 0) hit++; });
-    return { r: r, s: hit * 10000 + (seedOf(r.id + seed) % 997) };
+    return { r: r, s: hit * 10000 + (r.level === '简单' ? 300 : 0) + (seedOf(r.id + seed) % 997) };
   });
   scored.sort(function(a, b){ return b.s - a.s; });
   return scored.map(function(x){ return x.r; });
 }
 function planDay(){
-  var all = ALL().filter(function(r){ return !avoidDish(r); });
+  var all = ALL().filter(function(r){ return !avoidDish(r) && r.level !== '偏难'; });
   var cats = {'荤菜': [], '素菜': [], '主食': [], '汤': [], '甜点': [], '小吃': []};
   all.forEach(function(r){ var c = catOf(r); if(cats[c]) cats[c].push(r); });
   var out = [];
@@ -1024,7 +1024,7 @@ function planDay(){
     var pick = function(arr, n){ return prefRank(arr, seed).slice(0, n); };
     var dishes;
     if(meal === '早餐'){
-      dishes = pick(cats['主食'], 1).concat(pick(cats['素菜'], 1), pick(cats['小吃'].concat(cats['甜点']), 1), pick(cats['汤'], 1));
+      dishes = pick(cats['主食'], 1).concat(pick(cats['汤'], 1));
     } else {
       dishes = pick(cats['荤菜'], 2).concat(pick(cats['素菜'], 1), pick(cats['汤'], 1));
     }
@@ -1038,23 +1038,54 @@ function mealWhy(meal){
   if(meal === '早餐') return '主食顶饱，配点菜和蛋，再来一碗汤润口，早上不腻。';
   return '一荤一素打底，再加一道荤或蛋补蛋白，汤收尾，油盐别太重。';
 }
+var REC_SEL = {};
+function recKey(meal, id){ return meal + '|' + id; }
+function recOn(meal, id){
+  var k = recKey(meal, id);
+  return REC_SEL[k] === undefined ? true : !!REC_SEL[k];
+}
+function recToggle(meal, id){
+  var k = recKey(meal, id);
+  REC_SEL[k] = recOn(meal, id) ? 0 : 1;
+  if(TAB === 'mine'){ render(); } else { maybeRecRefresh(); }
+}
+function recSelCount(){
+  var n = 0;
+  planDay().forEach(function(p){ p.dishes.forEach(function(r){ if(recOn(p.meal, r.id)) n++; }); });
+  return n;
+}
+function maybeRecRefresh(){
+  var host = document.getElementById('recHost');
+  if(!host) return;
+  host.innerHTML = recHTML();
+  var c = document.getElementById('recAddBtn');
+  if(c) c.textContent = '加进点菜篮（' + recSelCount() + ' 道）';
+}
 function recHTML(){
   return planDay().map(function(p){
     return '<div class="card" style="margin-bottom:10px;padding:12px 14px">' +
-      '<div style="font-size:13px;font-weight:700;margin-bottom:8px">' + p.meal + ' · 3 菜 1 汤</div>' +
+      '<div style="font-size:13px;font-weight:700;margin-bottom:8px">' + p.meal + ' · ' +
+        (p.meal === '早餐' ? '简单点 · 1 主食 1 汤' : '3 菜 1 汤 · ' + p.dishes.length + ' 道') + '</div>' +
       '<div class="chips" style="margin:0">' + p.dishes.map(function(r){
-        return '<span class="chip">' + esc(r.name) + '</span>';
+        var on = recOn(p.meal, r.id);
+        return '<button class="chip ' + (on ? 'on' : '') + '" onclick="recToggle(\'' + p.meal + '\',\'' + r.id + '\')">' +
+          (on ? '' : '✕ ') + esc(r.name) + '</button>';
       }).join('') + '</div>' +
+      '<div style="font-size:11px;color:var(--ink2);margin-top:6px">不想要的点一下划掉</div>' +
       '<div style="font-size:12px;color:var(--ink2);margin-top:8px">' + mealWhy(p.meal) + '</div>' +
       '</div>';
   }).join('');
 }
 function recAddAll(){
-  var plan = planDay(), n = 0;
+  var plan = planDay(), n = 0, skipped = 0;
   plan.forEach(function(p){
-    p.dishes.forEach(function(r){ if(!CART[r.id]){ CART[r.id] = 1; n++; } });
+    p.dishes.forEach(function(r){
+      if(!recOn(p.meal, r.id)){ return; }
+      if(!CART[r.id]){ CART[r.id] = 1; n++; } else { skipped++; }
+    });
   });
-  toast(n ? '加了 ' + n + ' 道菜' : '这些已经在篮子里了');
+  if(!n && !skipped){ toast('一道都没选，先点几个菜名'); return; }
+  toast(n ? '加了 ' + n + ' 道菜' : '选中的都在篮子里了');
   TAB = 'order'; render(); window.scrollTo(0, 0);
 }
 function recSeenKey(){ return 'kitchen-rec-' + (CONF.user || 'x') + '-' + dayKey(); }
@@ -1064,11 +1095,11 @@ function maybeShowRec(){
   try{ seen = localStorage.getItem(recSeenKey()) === '1'; }catch(e){}
   if(seen) return;
   var h = '<h2>今天的推荐 <button class="close" onclick="markRecSeen();closeSheet()">关</button></h2>' +
-    '<div class="tipbar">三餐 3 菜 1 汤、荤素搭着来。今天配的是这些，点一下就能全加进点菜篮。</div>' +
-    recHTML() +
+    '<div class="tipbar">今天配的是这些：想吃的留着，不想要的点一下划掉，最后按下面那个按钮加进点菜篮。早餐就简单点，一主食一汤。</div>' +
+    '<div id="recHost">' + recHTML() + '</div>' +
     '<div style="display:flex;gap:8px;margin-top:12px">' +
       '<button class="btn ghost" style="flex:1" onclick="markRecSeen();closeSheet()">今天先不看</button>' +
-      '<button class="btn" style="flex:1" onclick="markRecSeen();closeSheet();recAddAll()">都加进点菜篮</button>' +
+      '<button class="btn" id="recAddBtn" style="flex:1" onclick="markRecSeen();closeSheet();recAddAll()">加进点菜篮（' + recSelCount() + ' 道）</button>' +
     '</div>';
   sheet(h);
 }
