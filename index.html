@@ -93,6 +93,7 @@ main{padding:8px 14px 20px}
 .st{font-size:11px;padding:2px 8px;border-radius:999px;font-weight:700}
 .st.wait{background:#fff2d8;color:#a86d10}
 .st.doing{background:#e7f0ff;color:#2b62b8}
+.st.reject{background:#fdeceb;color:#c0392b}
 .st.done{background:#e6f4ea;color:#2f7a49}
 .order .note{color:var(--ink2);font-size:13px;margin-top:4px;white-space:pre-wrap}
 .order .acts{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap}
@@ -1073,22 +1074,36 @@ function doClear(){
   if(syncOn()) push();
 }
 function orderHTML(o){
-  var stTxt = o.status === 'wait' ? '等做' : (o.status === 'doing' ? '在做' : '做好了');
+  var stTxt = o.status === 'wait' ? '等做' : (o.status === 'doing' ? '在做' : (o.status === 'reject' ? '被拒了' : '做好了'));
   var dishes = o.items.map(function(it){ return esc(it.name) + (it.n > 1 ? (' ×' + it.n) : ''); }).join('、');
   var acts = '';
   if(CONF.role === 'cook'){
-    if(o.status === 'wait') acts = '<button class="btn mini" onclick="setStatus(\'' + o.id + '\',\'doing\')">开始做</button>';
-    else if(o.status === 'doing') acts = '<button class="btn mini ok" onclick="setStatus(\'' + o.id + '\',\'done\')">做好了</button>';
-    else acts = '<button class="btn mini gray" onclick="setStatus(\'' + o.id + '\',\'wait\')">重新做</button>';
+    if(o.status === 'wait') acts = '<button class="btn mini" onclick="setStatus(\'' + o.id + '\',\'doing\')">开始做</button>' +
+      '<button class="btn mini gray" onclick="rejectOrder(\'' + o.id + '\')">拒单</button>';
+    else if(o.status === 'doing') acts = '<button class="btn mini ok" onclick="setStatus(\'' + o.id + '\',\'done\')">做好了</button>' +
+      '<button class="btn mini gray" onclick="rejectOrder(\'' + o.id + '\')">拒单</button>';
   }
   acts += '<button class="btn mini ghost" onclick="openOrder(\'' + o.id + '\')">看点啥 & 咋做</button>';
   return '<div class="order"><div class="top"><b>' + dishes + '</b><span class="st ' + o.status + '">' + stTxt + '</span></div>' +
     (o.at ? '<div class="note">预约：' + esc(o.at) + '</div>' : '') +
     (o.note ? '<div class="note">备注：' + esc(o.note) + '</div>' : '') +
+    (o.status === 'reject' && o.rejectNote ? '<div class="note" style="color:#c0392b">拒单原因：' + esc(o.rejectNote) + '</div>' : '') +
     '<div class="note" style="opacity:.7">下单：' + esc(o.created) + '</div>' +
     '<div class="acts">' + acts + '</div></div>';
 }
 function setCF(f){ COOK_FILTER = f; render(); }
+function rejectOrder(id){
+  var o = byOrder(id); if(!o) return;
+  var why = prompt('为啥做不了？这句话会发回点菜那边', '今天来不及做');
+  if(why === null) return;
+  why = String(why).trim() || '今天做不了，改天再点吧';
+  o.status = 'reject';
+  o.rejectNote = why;
+  o.rejectTs = Date.now();
+  o.upd = Date.now();
+  save(); render(); toast('已拒单，备注发回去了');
+  if(syncOn()) push();
+}
 function setStatus(id, st){
   var o = byOrder(id); if(!o) return;
   o.status = st;
@@ -1106,7 +1121,7 @@ function openOrder(id){
   var body = o.items.map(function(it){
     var r = byId(it.id);
     if(!r) return '<div class="intro">' + esc(it.name) + '（菜谱里没有）</div>';
-    return '<div class="sect"><h2>' + r.emoji + ' ' + esc(r.name) + ' ×' + it.n + '</h2><span>' + r.time + '分钟 · ' + r.level + '</span></div>' +
+    return '<div class="sect"><h2>' + esc(r.name) + ' ×' + it.n + '</h2><span>' + r.time + '分钟 · ' + r.level + '</span></div>' +
       '<div class="intro">' + esc(r.intro) + '</div>' +
       '<div><b style="font-size:14px">用料</b><div class="meta" style="margin-top:4px">' +
         r.need.map(function(x){
