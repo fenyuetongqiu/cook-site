@@ -1106,7 +1106,7 @@ function readEditForm(){
   v = g('rIntro'); if(v !== null) EDIT_DRAFT.intro = v;
   v = g('rTip'); if(v !== null) EDIT_DRAFT.tip = v;
 }
-function editSet(k, v){ readEditForm(); EDIT_DRAFT[k] = v; editRecipe(EDIT_ID, true); }
+function editSet(k, v){ readEditForm(); EDIT_DRAFT[k] = v; editRecipe(EDIT_ID, 'redraw'); }
 function editAuto(){
   readEditForm();
   var n = (EDIT_DRAFT.name || '').trim();
@@ -1114,7 +1114,7 @@ function editAuto(){
   EDIT_DRAFT.level = guessLevel(n);
   EDIT_DRAFT.time = guessTime(n);
   EDIT_DRAFT.cat = guessCat(n);
-  editRecipe(EDIT_ID, true);
+  editRecipe(EDIT_ID, 'redraw');
   toast('按名字猜好了，不对就点别的');
 }
 function editQuick(name){
@@ -1131,7 +1131,7 @@ function editQuick(name){
     if(!EDIT_DRAFT.need) EDIT_DRAFT.need = (hit.need || []).map(function(x){ return x.n + ' ' + x.a; }).join('\n');
     if(!EDIT_DRAFT.steps) EDIT_DRAFT.steps = (hit.steps || []).join('\n');
   }
-  editRecipe(EDIT_ID, true);
+  editRecipe(EDIT_ID, 'redraw');
   toast('填好了，看看对不对，不对直接点别的');
 }
 function editRecipe(id, keep){
@@ -1150,7 +1150,7 @@ function editRecipe(id, keep){
     } else {
       EDIT_DRAFT = { name:'', time:20, level:'中等', cat:'', need:'', steps:'', intro:'', tip:'', advanced:false };
     }
-  } else {
+  } else if(keep === true) {
     readEditForm();
   }
   var d = EDIT_DRAFT;
