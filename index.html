@@ -1026,7 +1026,9 @@ function planDay(){
     var pick = function(arr, n){ return prefRank(arr, seed).slice(0, n); };
     var dishes;
     if(meal === '早餐'){
-      dishes = pick(cats['主食'], 1).concat(pick(cats['汤'], 1));
+      var bMain = cats['主食'].filter(function(r){ return /面|粥|粉|包|饺|饼|馍|馒头|油条|饭团|米线|馄饨/.test(r.name); });
+      var bSide = cats['小吃'].concat(cats['甜点']);
+      dishes = pick(bMain.length ? bMain : cats['主食'], 1).concat(pick(bSide, 1));
     } else {
       dishes = pick(cats['荤菜'], 2).concat(pick(cats['素菜'], 1), pick(cats['汤'], 1));
     }
@@ -1067,7 +1069,7 @@ function recHTML(){
   return planDay().map(function(p){
     return '<div class="card" style="margin-bottom:10px;padding:12px 14px">' +
       '<div style="font-size:13px;font-weight:700;margin-bottom:8px">' + p.meal + ' · ' +
-        (p.meal === '早餐' ? '简单点 · 1 主食 1 汤' : '3 菜 1 汤 · ' + p.dishes.length + ' 道') + '</div>' +
+        (p.meal === '早餐' ? '简单点 · ' + p.dishes.length + ' 道早点' : '3 菜 1 汤 · ' + p.dishes.length + ' 道') + '</div>' +
       '<div class="chips" style="margin:0">' + p.dishes.map(function(r){
         var on = recOn(p.meal, r.id);
         return '<button class="chip ' + (on ? 'on' : '') + '" onclick="recToggle(\'' + p.meal + '\',\'' + r.id + '\')">' +
@@ -1097,7 +1099,7 @@ function maybeShowRec(){
   try{ seen = localStorage.getItem(recSeenKey()) === '1'; }catch(e){}
   if(seen) return;
   var h = '<h2>今天的推荐 <button class="close" onclick="markRecSeen();closeSheet()">关</button></h2>' +
-    '<div class="tipbar">今天配的是这些：想吃的留着，不想要的点一下划掉，最后按下面那个按钮加进点菜篮。早餐就简单点，一主食一汤。</div>' +
+    '<div class="tipbar">今天配的是这些：想吃的留着，不想要的点一下划掉，最后按下面那个按钮加进点菜篮。早餐就简单点，来点面啊粥啊的。</div>' +
     '<div id="recHost">' + recHTML() + '</div>' +
     '<div style="display:flex;gap:8px;margin-top:12px">' +
       '<button class="btn ghost" style="flex:1" onclick="markRecSeen();closeSheet()">今天先不看</button>' +
