@@ -834,16 +834,10 @@ var LOGIN_ROLE = 'member';
 function renderLogin(){
   $('#hdr').innerHTML = '';
   $('#bar').innerHTML = '';
-  var names = Object.keys(S.users || {});
-  var chips = names.map(function(n){
-    var u = S.users[n] || {};
-    return '<button class="chip" onclick="loginAs(\'' + esc(n) + '\')">' + esc(n) + ' · ' + (u.role === 'cook' ? '厨师' : '家人') + '</button>';
-  }).join('');
   $('#main').innerHTML =
     '<div class="login">' +
       '<h1>宝贝之家小厨房</h1>' +
-      '<p>起个名字、设个密码（第一次填就是注册）</p>' +
-      (chips ? '<div class="chips" style="justify-content:center;margin-bottom:10px">' + chips + '</div>' : '') +
+      '<p>起个名字、设个密码，第一次填就是注册</p>' +
       '<div class="card" style="text-align:left">' +
         '<div class="row"><label>名字</label><input id="uname" placeholder="比如：妈妈、秋、爸爸" maxlength="12"></div>' +
         '<div class="row"><label>密码</label><input id="upw" type="password" placeholder="至少 2 位，自己记住" maxlength="20" onkeydown="if(event.key===\'Enter\')doLogin()"></div>' +
