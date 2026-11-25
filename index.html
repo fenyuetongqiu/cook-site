@@ -1271,7 +1271,8 @@ function openRecipe(id){
     '<div class="meta"><span class="tag">' + (r.time || '?') + ' 分钟</span><span class="tag">' + esc(r.level || '家常') + '</span>' +
       (r.taste || []).map(function(t){ return '<span class="tag taste">' + esc(t) + '</span>'; }).join('') + '</div>' +
     (r.intro ? '<div class="intro">' + esc(r.intro) + '</div>' : '') +
-    (r.level === '偏难' ? '<a href="https://search.bilibili.com/all?keyword=' + encodeURIComponent(r.name + ' 做法') + '" target="_blank" rel="noopener" style="display:inline-block;margin:2px 0 8px;padding:7px 12px;border-radius:999px;background:#fff1e6;color:var(--brand);font-size:13px;text-decoration:none">偏难的菜 · 去 B 站看视频教程 →</a>' : '') +
+    '<a href="https://www.xiaohongshu.com/search_result?keyword=' + encodeURIComponent(r.name + ' 做法') + '" target="_blank" rel="noopener" style="display:inline-block;margin:2px 0 8px;padding:8px 14px;border-radius:999px;background:var(--soft);color:var(--brand);font-size:13px;text-decoration:none">' +
+      (r.level === '偏难' ? '偏难的菜 · 去小红书看做法 →' : '去小红书看「' + esc(r.name) + '」的做法 →') + '</a>' +
     '<div style="margin:8px 0 4px"><b style="font-size:14px">用料</b></div>' +
     '<div class="meta">' + (need.length ? need.map(function(x){
       var has = haveIng(x.n);
