@@ -26,7 +26,7 @@ main{padding:8px 14px 20px}
 .search{display:flex;gap:8px;margin:4px 0 10px}
 .search input{flex:1;border:1px solid var(--line);background:#fff;border-radius:12px;padding:11px 13px;font-size:15px;outline:none}
 .search input:focus{border-color:var(--brand2)}
-.chips{display:flex;gap:8px;overflow-x:auto;padding:2px 0 10px;scrollbar-width:none}
+.chips{display:flex;flex-wrap:wrap;gap:8px;overflow-x:auto;padding:2px 0 10px;scrollbar-width:none}
 .chips::-webkit-scrollbar{display:none}
 .chip{white-space:nowrap;border:1px solid var(--line);background:#fff;color:var(--ink2);padding:7px 12px;border-radius:999px;font-size:13px;font-weight:600;cursor:pointer}
 .chip.on{background:var(--brand);border-color:var(--brand);color:#fff}
@@ -336,6 +336,9 @@ function loadData(){
   if(!d.imgsVer) d.imgsVer = 0;
   if(!d.seq) d.seq = 1;
   if(!d.ts) d.ts = 0;
+  if(!d.cats || !d.cats.length) d.cats = null;
+  if(!d.tags || !d.tags.length) d.tags = null;
+  if(!d.ingList) d.ingList = [];
   if(!d.seeded){
     d.seeded = 1;
     var seed = {'番茄':'2个','鸡蛋':'6个','土豆':'3个','青椒':'2个','猪肉':'300g','米饭':'2碗','葱':'1把','蒜':'1头','生抽':'1瓶','醋':'1瓶'};
@@ -533,6 +536,9 @@ function mergeRemote(remote){
   if(rts > (S.ts || 0)){
     if(remote.inv && typeof remote.inv === 'object'){ S.inv = remote.inv; changed = true; }
     if(remote.recipes && remote.recipes.length){ S.recipes = remote.recipes; changed = true; }
+    if(remote.cats && remote.cats.length){ S.cats = remote.cats; changed = true; }
+    if(remote.tags && remote.tags.length){ S.tags = remote.tags; changed = true; }
+    if(remote.ingList && remote.ingList.length){ S.ingList = remote.ingList; changed = true; }
   }
   var map = {};
   (S.orders || []).forEach(function(o){ map[o.id] = o; });
@@ -563,7 +569,7 @@ function push(){                      // 先拉、合并、再推
     .catch(function(){ return null; })
     .then(function(remote){
       if(remote){ mergeRemote(remote); remoteImgsVer = Number(remote.imgsVer) || 0; }
-      snapshot = {inv:S.inv, orders:S.orders, recipes:S.recipes, seq:S.seq, ts:Math.max(Date.now(), S.ts || 0), imgsVer:S.imgsVer || 0, v:4};
+      snapshot = {inv:S.inv, orders:S.orders, recipes:S.recipes, seq:S.seq, ts:Math.max(Date.now(), S.ts || 0), imgsVer:S.imgsVer || 0, cats:S.cats || null, tags:S.tags || null, ingList:S.ingList || [], v:5};
       return dataPut(snapshot);
     })
     .then(function(){
@@ -752,10 +758,10 @@ function viewOrder(){
   var h = '';
   var catCount = {};
   all.forEach(function(r){ var c = catOf(r); catCount[c] = (catCount[c] || 0) + 1; });
-  var catChips = CATS.filter(function(c){ return catCount[c]; }).map(function(c){
+  var catChips = allCats().filter(function(c){ return catCount[c]; }).map(function(c){
     return '<button class="chip ' + (CAT === c ? 'on' : '') + '" onclick="setCat(\'' + c + '\')">' + c + ' ' + catCount[c] + '</button>';
   }).join('');
-  if(catChips) h += '<div class="chips" style="overflow-x:auto;white-space:nowrap">' +
+  if(catChips) h += '<div class="chips">' +
     '<button class="chip ' + (CAT === 'all' ? 'on' : '') + '" onclick="setCat(\'all\')">全部分类</button>' + catChips + '</div>';
   h += '<div style="display:flex;gap:6px;align-items:center">' +
       '<div class="search" style="flex:1;margin:0"><input id="q" placeholder="搜菜名、食材、口味…" value="' + esc(Q) + '" oninput="onQ(this.value)"></div>' +
@@ -782,7 +788,9 @@ function viewOrder(){
       (miss.length ? '<div class="miss">缺：' + esc(miss.join('、')) + '</div>' : '<div class="have">材料齐全 ✓</div>') +
       '<div style="display:flex;gap:6px;margin-top:2px">' +
         '<button class="btn mini ghost" onclick="openRecipe(\'' + r.id + '\')">做法</button>' +
-        '<button class="btn mini" style="flex:1" onclick="addCart(\'' + r.id + '\')">' + (inCart ? ('已选 ' + inCart + ' · 再加') : '加入点菜单') + '</button>' +
+        (inCart
+          ? '<div class="qty" style="flex:1;justify-content:space-between;background:#fff3e6;border-radius:12px;padding:4px 6px"><button onclick="chgCard(\'' + r.id + '\',-1)">−</button><b>' + inCart + '</b><button onclick="chgCard(\'' + r.id + '\',1)">+</button></div>'
+          : '<button class="btn mini" style="flex:1" onclick="chgCard(\'' + r.id + '\',1)">＋ 点一份</button>') +
       '</div></div>';
   }).join('') + '</div>';
   return h;
@@ -792,6 +800,11 @@ function setFilter(f){ FILTER = f; render(); }
 function setCat(c){ CAT = c; render(); }
 function setSort(v){ SORT = v; render(); }
 function addCart(id){ CART[id] = (CART[id] || 0) + 1; toast('加上了'); render(); }
+function chgCard(id, d){
+  var n = (CART[id] || 0) + d;
+  if(n <= 0){ delete CART[id]; } else { CART[id] = n; }
+  render();
+}
 function clearCart(){ CART = {}; render(); }
 
 function openCheckout(){
@@ -1046,8 +1059,10 @@ function openRecipe(id){
 /* ---- 加 / 改 / 删 自己的菜（阿姨版：能点就不打字） ---- */
 var EDIT_ID = '';
 var EDIT_DRAFT = null;
-var QUICK_NAMES = ['红烧鱼','糖醋排骨','麻婆豆腐','地三鲜','腐乳空心菜','西红柿鸡蛋汤','土豆炖牛肉','青椒炒蛋','蒜苔炒肉','木耳炒鸡蛋','清炒菠菜','冬瓜排骨汤','排骨藕汤','小鸡炖蘑菇','香菇青菜','卤鸡腿','盐水毛豆','凉拌黄瓜','酸菜鱼','香辣虾','手撕包菜','炒河粉','蛋炒饭','鸡蛋羹','疙瘩汤','小米粥','红薯粥','煎饺','蒸蛋','葱爆羊肉','溜肉段','干锅花菜','焖面','油泼面','小炒黄牛肉','口水鸡','酱牛肉','酸豆角肉末','家常豆腐','糖醋藕片','莴笋炒肉','西芹百合','清蒸鱼','白菜炖粉条','鸡肉炖土豆','紫菜蛋花汤','拍黄瓜','干煸杏鲍菇'];
 var TAGS = ['孩子爱吃','下饭','清淡','香辣','快手菜','补身子','解腻','当早餐','老人爱吃','下酒菜'];
+function allCats(){ return (S.cats && S.cats.length) ? S.cats : CATS; }
+function allTags(){ return (S.tags && S.tags.length) ? S.tags : TAGS; }
+function ingPool(){ var m = {}; COMMON_INGS.forEach(function(x){ m[x] = 1; }); (S.ingList || []).forEach(function(x){ m[x] = 1; }); Object.keys(S.inv || {}).forEach(function(x){ m[x] = 1; }); return Object.keys(m); }
 
 function guessTime(n){
   if(/粥/.test(n)) return 40;
@@ -1125,16 +1140,6 @@ function editAuto(){
   if(!EDIT_DRAFT.cat) EDIT_DRAFT.cat = guessCat(n);
   editRecipe(EDIT_ID, 'redraw');
 }
-function randomDish(){
-  readEditForm();
-  var n = QUICK_NAMES[Math.floor(Math.random() * QUICK_NAMES.length)];
-  EDIT_DRAFT.name = n;
-  EDIT_DRAFT.level = guessLevel(n);
-  EDIT_DRAFT.time = guessTime(n);
-  EDIT_DRAFT.cat = guessCat(n);
-  editRecipe(EDIT_ID, 'redraw');
-  toast('就来个「' + n + '」？不爱吃再点一次');
-}
 function editRecipe(id, keep){
   if(keep !== 'redraw'){
     EDIT_ID = id || '';
@@ -1161,9 +1166,7 @@ function editRecipe(id, keep){
   var h = '<h2>' + (EDIT_ID ? '改这道菜 ✏️' : '加一道新菜 ✨') + '<button class="close" onclick="closeSheet()">关</button></h2>' + head;
   h += sec('① 叫啥名字');
   h += '<div style="display:flex;gap:6px;align-items:center">' +
-    '<input id="rName" list="dishList" value="' + esc(d.name) + '" placeholder="点这里写，例：红烧鱼" style="flex:1" onchange="editAuto()">' +
-    '<button class="btn mini ghost" onclick="randomDish()" title="想不到就随便来一个">🎲 想不出</button></div>' +
-    '<datalist id="dishList">' + QUICK_NAMES.map(function(n){ return '<option value="' + esc(n) + '">'; }).join('') + '</datalist>';
+    '<input id="rName" value="' + esc(d.name) + '" placeholder="点这里写，例：红烧鱼" style="flex:1" onchange="editAuto()"></div>';
   h += sec('② 有照片就选一张（没有就只显示菜名）');
   h += '<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">' +
     '<label for="rImg" style="display:inline-block;padding:12px 18px;border-radius:14px;background:linear-gradient(135deg,#ffd9a8,#ffb27d);color:#7a3b12;font-size:15px;font-weight:700;box-shadow:0 2px 0 #f0a86a">📷 从相册选一张</label>' +
@@ -1179,15 +1182,15 @@ function editRecipe(id, keep){
   h += sec('④ 大概多久做好');
   h += '<div class="chips">' + [10,20,30,45,60,90].map(function(m){
     return '<button class="chip' + (Number(d.time) === m ? ' on' : '') + '" onclick="editSet(\'time\',' + m + ')">' + m + ' 分钟</button>';
-  }).join('') + '</div>';
+  }).join('') + '<button class="chip" onclick="addTime()">别的分钟</button></div>';
   h += sec('⑤ 属于哪一类');
-  h += '<div class="chips">' + CATS.map(function(x){
+  h += '<div class="chips">' + allCats().map(function(x){
     return '<button class="chip' + (d.cat === x ? ' on' : '') + '" onclick="editSet(\'cat\',\'' + x + '\')">' + x + '</button>';
-  }).join('') + '</div>';
+  }).join('') + '<button class="chip" onclick="addCat()">＋ 新分类</button></div>';
   h += sec('⑥ 贴几个标签（可多选）');
-  h += '<div class="chips">' + TAGS.map(function(t){
+  h += '<div class="chips">' + allTags().map(function(t){
     return '<button class="chip' + ((d.taste || []).indexOf(t) >= 0 ? ' on' : '') + '" onclick="editTaste(\'' + t + '\')">' + t + '</button>';
-  }).join('') + '</div>';
+  }).join('') + '<button class="chip" onclick="addTag()">＋ 新标签</button></div>';
   h += sec('⑦ 要买啥（一样一行）');
   h += '<div class="row" style="align-items:flex-start"><textarea id="rNeed" placeholder="例：&#10;番茄 2个&#10;鸡蛋 3个">' + esc(d.need) + '</textarea></div>';
   h += sec('⑧ 咋做（一步一行）');
@@ -1197,6 +1200,37 @@ function editRecipe(id, keep){
       '<button class="btn" style="flex:1;font-size:16px" onclick="saveRecipe()">✓ 存起来</button>' +
       '<button class="btn gray" onclick="closeSheet()">算了</button></div>';
   sheet(h);
+}
+function addCat(){
+  var n = prompt('新分类叫啥？比如：凉菜', '');
+  if(!n) return;
+  n = n.trim(); if(!n) return;
+  var list = allCats().slice();
+  if(list.indexOf(n) < 0) list.push(n);
+  S.cats = list;
+  EDIT_DRAFT.cat = n;
+  save(); editRecipe(EDIT_ID, 'redraw');
+  if(syncOn()) push();
+}
+function addTag(){
+  var n = prompt('新标签写啥？比如：下酒', '');
+  if(!n) return;
+  n = n.trim(); if(!n) return;
+  var list = allTags().slice();
+  if(list.indexOf(n) < 0) list.push(n);
+  S.tags = list;
+  EDIT_DRAFT.taste = (EDIT_DRAFT.taste || []).slice();
+  if(EDIT_DRAFT.taste.indexOf(n) < 0) EDIT_DRAFT.taste.push(n);
+  save(); editRecipe(EDIT_ID, 'redraw');
+  if(syncOn()) push();
+}
+function addTime(){
+  var v = prompt('大概多少分钟？', String(EDIT_DRAFT.time || 30));
+  if(!v) return;
+  var m = parseInt(v, 10);
+  if(!m || m <= 0 || m > 600){ toast('写个分钟数就行'); return; }
+  EDIT_DRAFT.time = m;
+  editRecipe(EDIT_ID, 'redraw');
 }
 function saveRecipe(){
   readEditForm();
@@ -1250,6 +1284,12 @@ function viewInv(){
   h += '<div class="row"><input id="ingName" list="ingList" placeholder="例：番茄 2个"><datalist id="ingList">' +
        COMMON_INGS.map(function(x){ return '<option value="' + esc(x) + '">'; }).join('') + '</datalist>' +
        '<button class="btn mini" onclick="addIng()">加上</button></div>';
+  var pool = ingPool();
+  h += '<div style="font-size:12px;color:#9b8577;margin:8px 0 4px">点一下就算有（再点一下取消）</div>';
+  h += '<div class="chips">' + pool.map(function(x){
+    var on = S.inv[x] != null;
+    return '<button class="chip' + (on ? ' on' : '') + '" onclick="tapIng(\'' + esc(x) + '\')">' + esc(x) + (on ? ' ✓' : '') + '</button>';
+  }).join('') + '</div>';
   h += '<div class="meta" style="margin:6px 0 10px;color:var(--ink2);font-size:12px">共 ' + names.length + ' 样</div>';
   if(!names.length) h += '<div class="empty">还没记材料</div>';
   names.forEach(function(n){
@@ -1270,8 +1310,18 @@ function addIng(){
     var name = m ? m[1] : p;
     var amount = m ? (m[2] || '') : '';
     S.inv[name] = amount || '有';
+    if(COMMON_INGS.indexOf(name) < 0){
+      if(!S.ingList) S.ingList = [];
+      if(S.ingList.indexOf(name) < 0) S.ingList.push(name);
+    }
   });
   save(); el.value = ''; render(); toast('记上了');
+  if(syncOn()) push();
+}
+function tapIng(name){
+  if(S.inv[name] != null){ delete S.inv[name]; toast('去掉了'); }
+  else { S.inv[name] = '有'; toast('记上了'); }
+  save(); render();
   if(syncOn()) push();
 }
 function delIng(btn){
