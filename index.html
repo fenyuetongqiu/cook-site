@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#fff8f0">
-<title>家里小厨房 · 点菜与做菜</title>
+<title>宝贝之家小厨房</title>
 <style>
 :root{
   --bg:#fff8f0; --card:#ffffff; --ink:#3a2e28; --ink2:#8a7a6e; --line:#f0e2d2;
@@ -139,6 +139,7 @@ nav,.search input,.qty button{border-radius:16px!important}
 .ic{width:15px;height:15px;vertical-align:-2px;stroke:currentColor;fill:none;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round;margin-right:5px}
 .editb{margin-left:auto;border:1px solid var(--line);background:#fff;color:var(--brand);border-radius:999px;padding:1px 8px;font-size:11.5px;font-weight:600;cursor:pointer}
 .delx{border:0;background:#fdeceb;color:#c0392b;border-radius:999px;width:22px;height:22px;font-size:12px;line-height:1;cursor:pointer;vertical-align:middle}
+.brand .who{display:inline-block;margin-right:6px;padding:2px 8px;border-radius:999px;background:var(--soft);color:var(--brand);font-size:12px}
 </style>
 </head>
 <body>
@@ -390,6 +391,7 @@ function loadData(){
   if(!d.cats || !d.cats.length) d.cats = null;
   if(!d.tags || !d.tags.length) d.tags = null;
   if(!d.ingList) d.ingList = [];
+  if(!d.users) d.users = {};
   if(!d.seeded){
     d.seeded = 1;
     var seed = {'番茄':'2个','鸡蛋':'6个','土豆':'3个','青椒':'2个','猪肉':'300g','米饭':'2碗','葱':'1把','蒜':'1头','生抽':'1瓶','醋':'1瓶'};
@@ -591,6 +593,10 @@ function mergeRemote(remote){
     if(remote.cats && remote.cats.length){ S.cats = remote.cats; changed = true; }
     if(remote.tags && remote.tags.length){ S.tags = remote.tags; changed = true; }
     if(remote.ingList && remote.ingList.length){ S.ingList = remote.ingList; changed = true; }
+    if(remote.users && typeof remote.users === 'object'){
+      S.users = S.users || {};
+      for(var un in remote.users){ if(!S.users[un]){ S.users[un] = remote.users[un]; changed = true; } }
+    }
   }
   var rdel = remote.del || {};
   Object.keys(rdel).forEach(function(k){
@@ -627,7 +633,7 @@ function push(){                      // 先拉、合并、再推
     .catch(function(){ return null; })
     .then(function(remote){
       if(remote){ mergeRemote(remote); remoteImgsVer = Number(remote.imgsVer) || 0; }
-      snapshot = {inv:S.inv, orders:S.orders, recipes:S.recipes, seq:S.seq, ts:Math.max(Date.now(), S.ts || 0), imgsVer:S.imgsVer || 0, cats:S.cats || null, tags:S.tags || null, ingList:S.ingList || [], del:S.del || {}, v:6};
+      snapshot = {inv:S.inv, orders:S.orders, recipes:S.recipes, seq:S.seq, ts:Math.max(Date.now(), S.ts || 0), imgsVer:S.imgsVer || 0, cats:S.cats || null, tags:S.tags || null, ingList:S.ingList || [], users:S.users || {}, del:S.del || {}, v:7};
       return dataPut(snapshot);
     })
     .then(function(){
@@ -734,33 +740,76 @@ function render(){
   renderBar();
 }
 
+var LOGIN_ROLE = 'member';
 function renderLogin(){
   $('#hdr').innerHTML = '';
   $('#bar').innerHTML = '';
+  var names = Object.keys(S.users || {});
+  var chips = names.map(function(n){
+    var u = S.users[n] || {};
+    return '<button class="chip" onclick="loginAs(\'' + esc(n) + '\')">' + esc(n) + ' · ' + (u.role === 'cook' ? '厨师' : '家人') + '</button>';
+  }).join('');
   $('#main').innerHTML =
     '<div class="login">' +
-      '<h1>家里小厨房</h1>' +
-      '<p>点菜 · 做菜 · 上传后两台设备共用一个订单本</p>' +
-      '<div class="roles">' +
-        '<div class="role" onclick="pickRole(\'order\')"><div class="big"></div><div><b>我是点菜的</b><span>看有啥菜、选菜、下单、预约</span></div></div>' +
-        '<div class="role" onclick="pickRole(\'cook\')"><div class="big">🍳</div><div><b>我是做饭的</b><span>看订单、开始做、做好了、看做法</span></div></div>' +
+      '<h1>宝贝之家小厨房</h1>' +
+      '<p>起个名字，选自己是厨师还是家人</p>' +
+      (chips ? '<div class="chips" style="justify-content:center;margin-bottom:10px">' + chips + '</div>' : '') +
+      '<div class="card" style="text-align:left">' +
+        '<div class="row"><label>名字</label><input id="uname" placeholder="比如：妈妈、秋、爸爸" maxlength="12"></div>' +
+        '<div class="row"><label>我是</label><div style="display:flex;gap:8px;flex:1">' +
+          '<button class="chip ' + (LOGIN_ROLE === 'member' ? 'on' : '') + '" onclick="setLoginRole(\'member\')">家人（点菜）</button>' +
+          '<button class="chip ' + (LOGIN_ROLE === 'cook' ? 'on' : '') + '" onclick="setLoginRole(\'cook\')">厨师（做菜）</button>' +
+        '</div></div>' +
+        '<button class="btn" style="width:100%;margin-top:8px" onclick="doLogin()">进来</button>' +
       '</div>' +
-      '<div style="display:flex;gap:8px;margin-top:18px">' +
+      '<div style="display:flex;gap:8px;margin-top:14px">' +
         '<button class="btn ghost" style="flex:1" onclick="openSync()">同步设置</button>' +
         '<button class="btn ghost" style="flex:1" onclick="openAbout()">怎么用</button>' +
       '</div>' +
-      '<div style="text-align:center;margin-top:14px;font-size:12px;color:var(--ink2)">' +
+      '<div style="text-align:center;margin-top:12px;font-size:12px;color:var(--ink2)">' +
         (syncOn() ? '两边自动同步，不用设置' : '还没开同步（只在这台设备上有效）') + '</div>' +
     '</div>';
 }
-function pickRole(r){ CONF.role = r; saveConf(); TAB = (r === 'cook' ? 'cook' : 'order'); render(); if(syncOn()){ pull().then(render); } }
+function setLoginRole(r){ LOGIN_ROLE = r; renderLogin(); }
+function loginAs(name){
+  var u = (S.users || {})[name];
+  if(!u){ LOGIN_ROLE = 'member'; var i = document.getElementById('uname'); if(i) i.value = name; return; }
+  enterAs(name, u.role);
+}
+function doLogin(){
+  var i = document.getElementById('uname');
+  var name = (i ? (i.value || '') : '').trim().replace(/\s+/g, ' ');
+  if(!name){ toast('先写个名字'); return; }
+  if(name.length > 12){ toast('名字短一点'); return; }
+  S.users = S.users || {};
+  var u = S.users[name];
+  var role = u ? u.role : LOGIN_ROLE;
+  if(!u){
+    S.users[name] = {role:role, ts:Date.now()};
+    save();
+  }
+  enterAs(name, role);
+}
+function enterAs(name, role){
+  CONF.user = name; CONF.role = role; saveConf();
+  TAB = (role === 'cook' ? 'cook' : 'order');
+  save(); render(); window.scrollTo(0, 0);
+  if(syncOn()){ pull().then(function(){ render(); }); }
+  toast((role === 'cook' ? '厨师 ' : '') + name + ' 进来了');
+}
+function logout(){
+  CONF.user = ''; CONF.role = ''; saveConf(); CART = {}; render();
+}
+function pickRole(r){ if(!CONF.user){ renderLogin(); return; } CONF.role = r; saveConf(); TAB = (r === 'cook' ? 'cook' : 'order'); render(); if(syncOn()){ pull().then(render); } }
 
 function renderHeader(){
   var badge = '<button class="mini" style="margin-right:6px" onclick="openSettings()">' + IC_SWATCH + '换肤</button>' +
     '<span id="syncBadge" class="syncbadge ' + (SYNC.state === 'on' ? '' : (SYNC.state === 'err' ? 'err' : 'off')) + '">' + esc(SYNC.msg) + '</span>';
   $('#hdr').innerHTML =
-    '<div class="brand"><span class="dot"></span>家里小厨房' +
-      '<small>' + badge + '<button class="mini" onclick="switchRole()">切换' + (CONF.role === 'cook' ? '点菜' : '做饭') + '</button></small>' +
+    '<div class="brand"><span class="dot"></span>宝贝之家小厨房' +
+      '<small>' + (CONF.user ? '<span class="who">' + esc(CONF.user) + (CONF.role === 'cook' ? ' · 厨师' : '') + '</span>' : '') + badge +
+      (CONF.role === 'cook' ? '<button class="mini" onclick="switchRole()">切换点菜</button>' : '') +
+      '<button class="mini" onclick="logout()">退出</button></small>' +
     '</div>' +
     '<nav>' +
       (CONF.role === 'cook'
@@ -772,6 +821,7 @@ function renderHeader(){
     '</nav>';
 }
 function switchRole(){
+  if(CONF.role !== 'cook'){ toast('你是家人，只能点菜'); return; }
   CONF.role = (CONF.role === 'cook' ? 'order' : 'cook');
   saveConf(); TAB = (CONF.role === 'cook' ? 'cook' : 'order'); render(); toast('已切换成' + (CONF.role === 'cook' ? '做饭' : '点菜') + '的界面');
 }
@@ -876,6 +926,17 @@ function viewOrder(){
   else if(SORT === 'hard') list = list.slice().sort(function(a,b){ return (LW[b.level]||2) - (LW[a.level]||2) || madeN(b.id) - madeN(a.id); });
   var canN = all.filter(cookable).length;
   var h = '';
+  var mine = myOrders().slice(0, 3);
+  if(mine.length){
+    h += '<div class="card" style="margin-bottom:10px;padding:12px 14px"><div style="font-size:13px;color:var(--ink2);margin-bottom:6px">我下的单</div>' +
+      mine.map(function(o){
+        var st = o.status, t = st === 'wait' ? '等做' : (st === 'doing' ? '在做' : (st === 'done' ? '做好了' : (st === 'reject' ? '被拒了' : st)));
+        return '<div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-top:1px solid var(--line)">' +
+          '<span style="flex:1;font-size:13px">' + esc(o.items.map(function(it){ return it.name + (it.n > 1 ? ' ×' + it.n : ''); }).join('、')) + '</span>' +
+          '<span class="st ' + st + '">' + t + '</span></div>' +
+          (st === 'reject' && o.rejectNote ? '<div class="note" style="color:#c0392b">厨师说：' + esc(o.rejectNote) + '</div>' : '');
+      }).join('') + '</div>';
+  }
   var catCount = {};
   all.forEach(function(r){ var c = catOf(r); catCount[c] = (catCount[c] || 0) + 1; });
   var catChips = allCats().filter(function(c){ return catCount[c]; }).map(function(c){
@@ -903,7 +964,8 @@ function viewOrder(){
     return '<div class="card">' + thumbHTML(r.id) +
       '<h3>' + esc(r.name) + '</h3>' +
       '<div class="meta"><span class="tag">' + r.time + ' 分钟</span><span class="tag">' + r.level + '</span>' +
-        (made ? '<span class="tag" style="background:#fff1e6;color:var(--brand)">做过 ' + made + ' 次</span>' : '') +
+        (made ? '<span class="tag" style="background:var(--soft);color:var(--brand)">做过 ' + made + ' 次</span>' : '') +
+        (myDishTag(r.id) || '') +
         r.taste.map(function(t){ return '<span class="tag taste">' + esc(t) + '</span>'; }).join('') + '</div>' +
       (miss.length ? '<div class="miss">缺：' + esc(miss.join('、')) + '</div>' : '<div class="have">材料齐全 ✓</div>') +
       '<div style="display:flex;gap:6px;margin-top:2px">' +
@@ -914,6 +976,23 @@ function viewOrder(){
       '</div></div>';
   }).join('') + '</div>';
   return h;
+}
+function myOrders(){
+  return (S.orders || []).filter(function(o){ return o.by === CONF.user && o.status !== 'deleted'; });
+}
+function myDishTag(id){
+  var best = null;
+  myOrders().forEach(function(o){
+    if(!(o.items || []).some(function(it){ return it.id === id; })) return;
+    if(!best || (o.upd || 0) > (best.upd || 0)) best = o;
+  });
+  if(!best) return '';
+  var st = best.status;
+  if(st === 'reject') return '<span class="tag" style="background:#fdeceb;color:#c0392b">被拒了</span>';
+  if(st === 'done') return '<span class="tag" style="background:#eaf6ee;color:#2f7d4f">做好了</span>';
+  if(st === 'doing') return '<span class="tag" style="background:var(--soft);color:var(--brand)">在做</span>';
+  if(st === 'wait') return '<span class="tag" style="background:var(--soft2);color:var(--softink)">等做</span>';
+  return '';
 }
 function onQ(v){ Q = v.trim(); var pos = 0; var i = document.getElementById('q'); if(i) pos = i.selectionStart; render(); var el = document.getElementById('q'); if(el){ el.focus(); try{ el.setSelectionRange(pos,pos); }catch(e){} } }
 function setFilter(f){ FILTER = f; render(); }
@@ -963,7 +1042,7 @@ function submitOrder(){
   var items = Object.keys(CART).map(function(id){ var r = byId(id); return {id:id, name:r.name, n:CART[id]}; });
   if(!items.length){ toast('没菜'); return; }
   S.orders.unshift({
-    id: 'o' + (S.seq++), items: items, note: note, at: at,
+    id: 'o' + (S.seq++), items: items, note: note, at: at, by: CONF.user || '家人',
     status: 'wait', created: new Date().toLocaleString('zh-CN',{hour12:false}),
     startedAt:'', doneAt:'', upd: Date.now()
   });
@@ -1093,6 +1172,7 @@ function orderHTML(o){
   }
   acts += '<button class="btn mini ghost" onclick="openOrder(\'' + o.id + '\')">看点啥 & 咋做</button>';
   return '<div class="order"><div class="top"><b>' + dishes + '</b><span class="st ' + o.status + '">' + stTxt + '</span></div>' +
+    (o.by ? '<div class="note">谁点的：' + esc(o.by) + '</div>' : '') +
     (o.at ? '<div class="note">预约：' + esc(o.at) + '</div>' : '') +
     (o.note ? '<div class="note">备注：' + esc(o.note) + '</div>' : '') +
     (o.status === 'reject' && o.rejectNote ? '<div class="note" style="color:#c0392b">拒单原因：' + esc(o.rejectNote) + '</div>' : '') +
@@ -1100,16 +1180,32 @@ function orderHTML(o){
     '<div class="acts">' + acts + '</div></div>';
 }
 function setCF(f){ COOK_FILTER = f; render(); }
-function rejectOrder(id){
+function rejectOrder(id){ openReject(id); }
+function openReject(id){
   var o = byOrder(id); if(!o) return;
-  var why = prompt('为啥做不了？这句话会发回点菜那边', '今天来不及做');
-  if(why === null) return;
-  why = String(why).trim() || '今天做不了，改天再点吧';
+  var dishes = (o.items || []).map(function(it){ return it.name + (it.n > 1 ? ' ×' + it.n : ''); }).join('、');
+  var quick = ['今天来不及做', '材料不够', '太麻烦，改天', '今天不想做这个', '已经做别的菜了', '太晚了，明天吧'];
+  sheet('<h2>拒掉这一单<button class="close" onclick="closeSheet()">关</button></h2>' +
+    '<div class="tipbar">要拒的是：' + esc(dishes) + (o.by ? '（' + esc(o.by) + ' 点的）' : '') + '</div>' +
+    '<div class="tipbar" style="margin-top:8px">写一句原因，TA 在点菜那边能看到。</div>' +
+    '<div class="chips" style="margin:10px 0">' + quick.map(function(t){
+      return '<button class="chip" onclick="pickWhy(this)">' + t + '</button>';
+    }).join('') + '</div>' +
+    '<textarea id="why" placeholder="比如：今天菜不够了，明天给你做" style="min-height:80px"></textarea>' +
+    '<div style="display:flex;gap:8px;margin-top:10px">' +
+      '<button class="btn gray" style="flex:1" onclick="doReject(\'' + o.id + '\')">发回去</button>' +
+      '<button class="btn ghost" style="flex:1" onclick="closeSheet()">再想想</button></div>');
+}
+function pickWhy(btn){ var t = document.getElementById('why'); if(t) t.value = btn.textContent; }
+function doReject(id){
+  var o = byOrder(id); if(!o) return;
+  var t = document.getElementById('why');
+  var why = (t ? (t.value || '') : '').trim() || '今天做不了，改天再点吧';
   o.status = 'reject';
   o.rejectNote = why;
   o.rejectTs = Date.now();
   o.upd = Date.now();
-  save(); render(); toast('已拒单，备注发回去了');
+  save(); closeSheet(); render(); toast('拒了，原因发回去了');
   if(syncOn()) push();
 }
 function setStatus(id, st){
