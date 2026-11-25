@@ -591,6 +591,8 @@ var TAB = '';
 var Q = '';
 var FILTER = 'all';
 var CAT = 'all';
+var SORT = 'default';
+var LW = {'简单':1,'中等':2,'偏难':3};
 var CART = {};
 var COOK_FILTER = 'wait';
 var STAT_RANGE = 'week';
@@ -743,6 +745,9 @@ function viewOrder(){
     if(FILTER === 'nearly'){ var m = missingOf(r).length; return m > 0 && m <= 2; }
     return true;
   });
+  if(SORT === 'rank') list = list.slice().sort(function(a,b){ return madeN(b.id) - madeN(a.id) || a.name.localeCompare(b.name,'zh'); });
+  else if(SORT === 'easy') list = list.slice().sort(function(a,b){ return (LW[a.level]||2) - (LW[b.level]||2) || madeN(b.id) - madeN(a.id); });
+  else if(SORT === 'hard') list = list.slice().sort(function(a,b){ return (LW[b.level]||2) - (LW[a.level]||2) || madeN(b.id) - madeN(a.id); });
   var canN = all.filter(cookable).length;
   var h = '';
   var catCount = {};
@@ -752,7 +757,14 @@ function viewOrder(){
   }).join('');
   if(catChips) h += '<div class="chips" style="overflow-x:auto;white-space:nowrap">' +
     '<button class="chip ' + (CAT === 'all' ? 'on' : '') + '" onclick="setCat(\'all\')">全部分类</button>' + catChips + '</div>';
-  h += '<div class="search"><input id="q" placeholder="搜菜名、食材、口味…" value="' + esc(Q) + '" oninput="onQ(this.value)"></div>';
+  h += '<div style="display:flex;gap:6px;align-items:center">' +
+      '<div class="search" style="flex:1;margin:0"><input id="q" placeholder="搜菜名、食材、口味…" value="' + esc(Q) + '" oninput="onQ(this.value)"></div>' +
+      '<select id="sortSel" onchange="setSort(this.value)" style="flex:0 0 auto;max-width:108px;border:1px solid #f0d9c6;background:#fff;border-radius:10px;padding:9px 4px;font-size:13px;color:#8a5a3b">' +
+        '<option value="default"' + (SORT==='default'?' selected':'') + '>默认排序</option>' +
+        '<option value="rank"' + (SORT==='rank'?' selected':'') + '>排名排序</option>' +
+        '<option value="easy"' + (SORT==='easy'?' selected':'') + '>简单优先</option>' +
+        '<option value="hard"' + (SORT==='hard'?' selected':'') + '>难优先</option>' +
+      '</select></div>';
   h += '<div class="chips">' +
       '<button class="chip ' + (FILTER==='all'?'on':'') + '" onclick="setFilter(\'all\')">全部 ' + all.length + '</button>' +
       '<button class="chip ' + (FILTER==='can'?'on':'') + '" onclick="setFilter(\'can\')">现在能做 ' + canN + '</button>' +
@@ -778,6 +790,7 @@ function viewOrder(){
 function onQ(v){ Q = v.trim(); var pos = 0; var i = document.getElementById('q'); if(i) pos = i.selectionStart; render(); var el = document.getElementById('q'); if(el){ el.focus(); try{ el.setSelectionRange(pos,pos); }catch(e){} } }
 function setFilter(f){ FILTER = f; render(); }
 function setCat(c){ CAT = c; render(); }
+function setSort(v){ SORT = v; render(); }
 function addCart(id){ CART[id] = (CART[id] || 0) + 1; toast('加上了'); render(); }
 function clearCart(){ CART = {}; render(); }
 
@@ -911,7 +924,28 @@ function viewCook(){
     '<button class="chip ' + (COOK_FILTER==='all'?'on':'') + '" onclick="setCF(\'all\')">全部</button></div>';
   if(!list.length) h += '<div class="empty">这边还没有单子</div>';
   else h += '<div class="olist">' + list.map(orderHTML).join('') + '</div>';
+  h += '<div style="text-align:center;margin:18px 0 6px">' +
+    '<button onclick="askClear()" style="border:0;background:none;color:#c0a189;font-size:12px;text-decoration:underline;padding:6px">清除数据</button></div>';
   return h;
+}
+function askClear(){
+  if(!confirm('要清空所有订单、自己加的菜和图片吗？\n清空后两边（点菜的 / 做饭的）都会变空，没法撤销。')) return;
+  sheet('<h2>确认清空<button class="close" onclick="closeSheet()">关</button></h2>' +
+    '<div class="intro">这一步会删掉：<b>全部订单</b>、<b>自己加的菜</b>、<b>上传的菜图</b>。内置的 40 道菜谱不会受影响。</div>' +
+    '<div class="row"><label>验证</label><input id="clr" placeholder="输入 清空 两个字"></div>' +
+    '<div style="display:flex;gap:8px;margin-top:12px">' +
+      '<button class="btn" style="flex:1;background:#d94a3d" onclick="doClear()">确认清空</button>' +
+      '<button class="btn ghost" onclick="closeSheet()">算了</button></div>');
+}
+function doClear(){
+  var el = document.getElementById('clr');
+  var v = el ? el.value.trim() : '';
+  if(v !== '清空'){ toast('要输入「清空」两个字才给删'); return; }
+  S.orders = []; S.recipes = []; S.imgs = {}; S.inv = {};
+  S.seq = 1; S.ts = Date.now(); S.imgsVer = Date.now();
+  save(); closeSheet(); render();
+  toast('清空了，两边都干净了');
+  if(syncOn()) push();
 }
 function orderHTML(o){
   var stTxt = o.status === 'wait' ? '等做' : (o.status === 'doing' ? '在做' : '做好了');
