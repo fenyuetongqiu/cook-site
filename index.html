@@ -1118,7 +1118,7 @@ function catOf(r){
   if(r && r.cat) return r.cat;
   var n = (r && r.name) || '';
   if(/汤|羹|粥/.test(n)) return '汤';
-  if(/饭|面|粉|馍|饺|包|饼|馒头|糕/.test(n)) return '主食';
+  if(/饭|面|粉|馍|饺|包子|馄饨|饼|馒头|糕/.test(n)) return '主食';
   if(/糖|甜|布丁|奶|果/.test(n)) return '甜点';
   if(/肉|鸡|鱼|虾|排骨|牛|猪|羊|蛋/.test(n)) return '荤菜';
   return '素菜';
