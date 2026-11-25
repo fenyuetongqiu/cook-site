@@ -415,6 +415,8 @@ function loadConf(){
   var c = null;
   try{ c = JSON.parse(localStorage.getItem(CONFKEY) || 'null'); }catch(e){ c = null; }
   if(!c) c = {role:'', token:'', owner:'fenyuetongqiu', repo:'kitchen', path:'data/kb.json'};
+  c.lastName = c.user || c.lastName || '';
+  c.role = ''; c.user = '';
   return c;
 }
 function saveConf(){ try{ localStorage.setItem(CONFKEY, JSON.stringify(CONF)); }catch(e){} }
@@ -942,7 +944,7 @@ function doLogin(){
   enterAs(name, LOGIN_ROLE, isNew);
 }
 function enterAs(name, role, isNew){
-  CONF.user = name; CONF.role = role; saveConf();
+  CONF.user = name; CONF.role = role; CONF.lastName = name; saveConf();
   TAB = (role === 'cook' ? 'cook' : 'order');
   save(); render(); window.scrollTo(0, 0);
   if(syncOn()){ pull().then(function(){ render(); }); }
@@ -1267,19 +1269,6 @@ function viewOrder(){
   else if(SORT === 'hard') list = list.slice().sort(function(a,b){ return (LW[b.level]||2) - (LW[a.level]||2) || madeN(b.id) - madeN(a.id); });
   var canN = all.filter(cookable).length;
   var h = '';
-  var mine = myOrders().slice(0, 4);
-  if(mine.length){
-    h += '<div class="card" style="margin-bottom:10px;padding:12px 14px"><div style="font-size:13px;color:var(--ink2);margin-bottom:6px">我下的单 · 现在咋样了</div>' +
-      mine.map(function(o){
-        var st = o.status, t = st === 'wait' ? '等做' : (st === 'doing' ? '在做' : (st === 'done' ? '做好了' : (st === 'reject' ? '被拒了' : st)));
-        return '<div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-top:1px solid var(--line)">' +
-          '<span style="flex:1;font-size:13px">' + esc(o.items.map(function(it){ return it.name + (it.n > 1 ? ' ×' + it.n : ''); }).join('、')) + '</span>' +
-          '<span class="st ' + st + '">' + t + '</span></div>' +
-          (st === 'reject' && o.rejectNote ? '<div class="note" style="color:#c0392b">厨师说：' + esc(o.rejectNote) + '</div>' : '');
-      }).join('') + '</div>';
-  } else {
-    h += '<div class="card" style="margin-bottom:10px;padding:12px 14px;font-size:13px;color:var(--ink2)">我下的单 · 点完菜这里会显示做没做好</div>';
-  }
   var catCount = {};
   all.forEach(function(r){ var c = catOf(r); catCount[c] = (catCount[c] || 0) + 1; });
   var catChips = allCats().filter(function(c){ return catCount[c]; }).map(function(c){
