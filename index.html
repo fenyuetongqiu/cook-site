@@ -3,7 +3,15 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<meta name="theme-color" content="#fff8f0">
+<meta name="theme-color" content="#e8752c">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="小厨房">
+<meta name="application-name" content="小厨房">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
+<link rel="apple-touch-icon" href="icons/icon-192.png">
 <title>宝贝之家小厨房</title>
 <style>
 :root{
@@ -2056,6 +2064,16 @@ setInterval(function(){
   if(ae && (ae.tagName === 'INPUT' || ae.tagName === 'TEXTAREA')) return; // 正在输入别刷
   pull().then(function(ok){ if(ok) render(); });
 }, 10000);
+</script>
+<script>
+// 装成 App（PWA）：注册 Service Worker，支持「添加到主屏幕」后像软件一样打开
+(function(){
+  if(!('serviceWorker' in navigator)) return;
+  if(location.protocol !== 'https:' && location.hostname !== 'localhost') return;
+  window.addEventListener('load', function(){
+    navigator.serviceWorker.register('sw.js').catch(function(){});
+  });
+})();
 </script>
 </body>
 </html>
