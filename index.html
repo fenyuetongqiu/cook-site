@@ -415,6 +415,9 @@ function loadData(){
   if(!d.tags || !d.tags.length) d.tags = null;
   if(!d.ingList) d.ingList = [];
   if(!d.users) d.users = {};
+  if(!d.fams) d.fams = [];
+  if(!d.appName) d.appName = '家里的小厨房';
+  if(!d.myFam) d.myFam = '';
   if(!d.seeded){
     d.seeded = 1;
     var seed = {'番茄':'2个','鸡蛋':'6个','土豆':'3个','青椒':'2个','猪肉':'300g','米饭':'2碗','葱':'1把','蒜':'1头','生抽':'1瓶','醋':'1瓶'};
@@ -618,6 +621,8 @@ function mergeRemote(remote){
     if(remote.cats && remote.cats.length){ S.cats = remote.cats; changed = true; }
     if(remote.tags && remote.tags.length){ S.tags = remote.tags; changed = true; }
     if(remote.ingList && remote.ingList.length){ S.ingList = remote.ingList; changed = true; }
+    if(remote.fams && remote.fams.length){ S.fams = remote.fams; changed = true; }
+    if(remote.appName){ S.appName = remote.appName; }
     if(remote.users && typeof remote.users === 'object'){
       S.users = S.users || {};
       for(var un in remote.users){
@@ -671,7 +676,7 @@ function push(){                      // 先拉、合并、再推
     .catch(function(){ return null; })
     .then(function(remote){
       if(remote){ mergeRemote(remote); remoteImgsVer = Number(remote.imgsVer) || 0; }
-      snapshot = {inv:S.inv, orders:S.orders, recipes:S.recipes, seq:S.seq, ts:Math.max(Date.now(), S.ts || 0), imgsVer:S.imgsVer || 0, cats:S.cats || null, tags:S.tags || null, ingList:S.ingList || [], users:S.users || {}, del:S.del || {}, delR:S.delR || {}, v:8};
+      snapshot = {inv:S.inv, orders:S.orders, recipes:S.recipes, seq:S.seq, ts:Math.max(Date.now(), S.ts || 0), imgsVer:S.imgsVer || 0, cats:S.cats || null, tags:S.tags || null, ingList:S.ingList || [], users:S.users || {}, del:S.del || {}, delR:S.delR || {}, fams:S.fams || [], appName:S.appName || '', v:9};
       return dataPut(snapshot);
     })
     .then(function(){
@@ -742,6 +747,11 @@ function openSettings(){
     }).join('') + '</div>' +
     '<div class="tipbar" style="margin-top:12px">点一下就能换，只存在这台手机上，随时能改回来。</div>' +
     '<div class="tipbar">想删错记的菜？去「统计」里每一条右边有个 ✕。</div>' +
+    '<div class="frmsec" style="margin-top:14px"><i>1</i>软件名字</div>' +
+    '<div class="addrow"><input id="appNm" value="' + esc(appName()) + '" placeholder="家里的小厨房" maxlength="12"><button class="btn" onclick="setAppName()">改</button></div>' +
+    '<div class="tipbar">改了以后标题和顶部都跟着变，所有设备同步。</div>' +
+    '<div class="frmsec"><i>2</i>版本</div>' +
+    '<div class="addrow"><input value="v' + APP_VERSION + '" readonly><button class="btn" onclick="checkUpdate(false)">检查更新</button></div>' +
     '<button class="btn ghost" style="width:100%;margin-top:10px" onclick="closeSheet();startTour(CONF.role, true)">再看一遍新手引导</button>';
   sheet(h);
 }
@@ -859,7 +869,8 @@ function render(){
   else if(TAB === 'cook') main.innerHTML = viewCook();
   else if(TAB === 'stats') main.innerHTML = viewStats();
   else if(TAB === 'menu') main.innerHTML = viewMenu();
-  else if(TAB === 'mine') main.innerHTML = viewMine();
+  else if(TAB === 'mine') main.innerHTML = accCardHTML() + viewMine();
+  else if(TAB === 'nutri') main.innerHTML = viewNutri();
   else main.innerHTML = viewInv();
   renderBar();
 }
@@ -870,7 +881,7 @@ function renderLogin(){
   $('#bar').innerHTML = '';
   $('#main').innerHTML =
     '<div class="login">' +
-      '<h1>宝贝之家小厨房</h1>' +
+      '<h1>' + esc(appName()) + '</h1>' +
       '<p>起个名字、设个密码，第一次填就是注册</p>' +
       '<div class="card" style="text-align:left">' +
         '<div class="row"><label>名字</label><input id="uname" value="' + esc(CONF.lastName || '') + '" placeholder="比如：妈妈、秋、爸爸" maxlength="12"></div>' +
@@ -882,6 +893,8 @@ function renderLogin(){
         '<button class="btn" style="width:100%;margin-top:8px" onclick="doLogin()">进来</button>' +
         '<div style="font-size:12px;color:var(--ink2);margin-top:8px">一个名字一个密码，厨师端和点菜端都能进；老账号第一次登录会把这次的密码记下来。</div>' +
         '<button class="btn ghost" style="width:100%;margin-top:8px" onclick="openForgot()">忘记密码？点这里换一个</button>' +
+        '<button class="btn" style="width:100%;margin-top:12px;background:linear-gradient(135deg,#59d0ff,#a78bfa);color:#0b1020" onclick="openFyLogin()">用风月账号登录（官网）</button>' +
+        '<button class="btn ghost" style="width:100%;margin-top:8px" onclick="openFamJoin()">我是家里的成员，用家庭密码进</button>' +
       '</div>' +
       '<div style="display:flex;gap:8px;margin-top:14px">' +
         '<button class="btn ghost" style="flex:1" onclick="openSync()">同步设置</button>' +
@@ -981,7 +994,7 @@ function renderHeader(){
   var badge = '<button class="mini" style="margin-right:6px" onclick="openSettings()">' + IC_SWATCH + '换肤</button>' +
     '<span id="syncBadge" class="syncbadge ' + (SYNC.state === 'on' ? '' : (SYNC.state === 'err' ? 'err' : 'off')) + '">' + esc(SYNC.msg) + '</span>';
   $('#hdr').innerHTML =
-    '<div class="brand"><span class="dot"></span>宝贝之家小厨房' +
+    '<div class="brand"><span class="dot"></span>' + esc(appName()) + (myFam() ? '<span class="famtag">' + esc(myFam().name) + '</span>' : '') +
       '<small>' + (CONF.user ? '<span class="who">' + esc(CONF.user) + (CONF.role === 'cook' ? ' · 厨师' : '') + '</span>' : '') + badge +
 
       '<button class="mini" onclick="logout()">退出</button></small>' +
@@ -991,8 +1004,10 @@ function renderHeader(){
         ? '<button data-tab="cook" class="' + (TAB==='cook'?'on':'') + '" onclick="go(\'cook\')">做菜</button>' +
           '<button data-tab="inv" class="' + (TAB==='inv'?'on':'') + '" onclick="go(\'inv\')">有啥菜</button>' +
           '<button data-tab="menu" class="' + (TAB==='menu'?'on':'') + '" onclick="go(\'menu\')">菜谱</button>' +
-          '<button data-tab="stats" class="' + (TAB==='stats'?'on':'') + '" onclick="go(\'stats\')">统计</button>'
-        : '<button data-tab="order" class="' + (TAB==='order'?'on':'') + '" onclick="go(\'order\')">点菜' + orderBadge() + '</button>') +
+          '<button data-tab="stats" class="' + (TAB==='stats'?'on':'') + '" onclick="go(\'stats\')">统计</button>' +
+          '<button data-tab="nutri" class="' + (TAB==='nutri'?'on':'') + '" onclick="go(\'nutri\')">营养</button>'
+        : '<button data-tab="order" class="' + (TAB==='order'?'on':'') + '" onclick="go(\'order\')">点菜' + orderBadge() + '</button>' +
+          '<button data-tab="nutri" class="' + (TAB==='nutri'?'on':'') + '" onclick="go(\'nutri\')">营养</button>') +
       '<button data-tab="mine" class="' + (TAB==='mine'?'on':'') + '" onclick="go(\'mine\')">我的</button>' +
     '</nav>';
 }
@@ -2050,9 +2065,414 @@ function sheet(html){ $('#sheet').innerHTML = html; $('#mask').classList.add('on
 function closeSheet(){ $('#mask').classList.remove('on'); }
 $('#mask').addEventListener('click', function(e){ if(e.target === this) closeSheet(); });
 
+var APP_VERSION = '1.0.0';
+var NUT_R = 'week';
+
+/* ---------- 自检更新 ---------- */
+function verNum(v){ var a = String(v).split('.'); return (Number(a[0])||0)*10000 + (Number(a[1])||0)*100 + (Number(a[2])||0); }
+function checkUpdate(silent){
+  return fetch('index.html?t=' + Date.now(), {cache:'no-store'})
+    .then(function(r){ return r.text(); })
+    .then(function(t){
+      var m = t.match(/var APP_VERSION = '([0-9.]+)'/);
+      if(!m) throw new Error('读不到版本号');
+      var remote = m[1];
+      if(verNum(remote) > verNum(APP_VERSION)){
+        sheet('<h2>有新版本 <button class="close" onclick="closeSheet()">关</button></h2>' +
+          '<div class="tipbar">现在 ' + APP_VERSION + '，最新 ' + remote + '。</div>' +
+          '<button class="btn" style="width:100%;margin-top:10px" onclick="location.reload(true)">刷新到新版</button>');
+        return remote;
+      }
+      if(!silent){ toast('已经是最新的 ' + APP_VERSION); }
+      return remote;
+    })
+    .catch(function(e){ if(!silent) toast('检查失败：' + (e.message || '网络')); return ''; });
+}
+
+
+/* ---------- 风月账号（绑定官网） ---------- */
+var FY_API = 'https://1541955020-1l7btqdlx4.ap-shanghai.tencentscf.com';
+
+function fyInfo(){ return CONF.fy || null; }
+function fyToken(){ var f = fyInfo(); return (f && f.token) || ''; }
+function fyOn(){ return !!fyToken(); }
+function fyName(){ var f = fyInfo(); return (f && (f.nick || f.email)) || ''; }
+function fyVip(){ var f = fyInfo(); return !!(f && f.vip); }
+
+function fyCall(path, body){
+  var h = { 'Content-Type': 'application/json' };
+  if(fyToken()) h.Authorization = 'Bearer ' + fyToken();
+  return fetch(FY_API + '/' + path, {
+    method: body ? 'POST' : 'GET',
+    headers: h,
+    body: body ? JSON.stringify(body) : undefined
+  }).then(function(r){
+    return r.json().catch(function(){ return {}; }).then(function(j){
+      if(!r.ok) throw new Error(j.error || ('网络错误 ' + r.status));
+      return j;
+    });
+  });
+}
+
+function openFyLogin(){
+  sheet('<h2>用风月账号登录 <button class="close" onclick="closeSheet()">关</button></h2>' +
+    '<div class="frmsec"><i>1</i>账号</div>' +
+    '<input id="fyAcc" placeholder="邮箱 或 名字" style="width:100%">' +
+    '<div class="frmsec"><i>2</i>密码</div>' +
+    '<input id="fyPw" type="password" placeholder="官网账号的密码" style="width:100%">' +
+    '<div class="tipbar" style="margin-top:10px">没账号？先去 fenyuetongqiu.top 注册一个，回来再登。</div>' +
+    '<button class="btn" style="width:100%;margin-top:10px" onclick="doFyLogin()">登录</button>');
+}
+function doFyLogin(){
+  var acc = ($('#fyAcc').value || '').trim();
+  var pw = $('#fyPw').value || '';
+  if(!acc || !pw){ toast('账号和密码都要填'); return; }
+  toast('正在登录…');
+  fyCall('login', { account: acc, password: pw }).then(function(j){
+    CONF.fy = { token: j.token, email: j.user.email, nick: j.user.name, role: j.user.role, vip: false };
+    saveConf();
+    return fyCheckVip();
+  }).then(function(){
+    closeSheet();
+    toast('登录上了：' + fyName());
+    if(!CONF.role){ renderLogin(); }
+    else { render(); }
+    setTimeout(function(){ if(!myFam()) openFamGate(); }, 500);
+  }).catch(function(e){ toast(e.message || '登录失败'); });
+}
+
+function fyCheckVip(){
+  if(!fyOn()) return Promise.resolve(false);
+  return fyCall('me/orders').then(function(j){
+    var list = j.orders || [];
+    var paid = list.filter(function(o){ return o.status === 'paid'; });
+    var vip = paid.some(function(o){
+      var s = (o.productName || '') + ' ' + (o.productId || '');
+      return /厨房|kitchen|cook/i.test(s);
+    });
+    if(!vip && CONF.fy.role === 'admin') vip = true;   // 老板自己先放行
+    CONF.fy.vip = vip;
+    saveConf();
+    return vip;
+  }).catch(function(){ return false; });
+}
+
+function fyLogout(){
+  fyCall('logout', {}).catch(function(){});
+  delete CONF.fy;
+  CONF.fam = '';
+  S.myFam = '';
+  save();
+  saveConf();
+  render();
+  toast('退出官网账号了');
+}
+
+/* ---------- 家庭模式 ---------- */
+function fams(){ if(!S.fams) S.fams = []; return S.fams; }
+function myFam(){
+  if(!S.myFam) return null;
+  var a = fams().filter(function(f){ return f.id === S.myFam; });
+  return a[0] || null;
+}
+function famOwnerName(){ var f = myFam(); return f ? f.owner : ''; }
+function famIsOwner(){ var f = myFam(); return !!f && f.owner === CONF.user; }
+function famMembers(){ var f = myFam(); return (f && f.members) || []; }
+
+function openFamGate(){
+  var h = '<h2>要不要建个家庭？ <button class="close" onclick="closeSheet()">关</button></h2>' +
+    '<div class="tipbar">家庭：把一家人的点菜、菜谱、统计放在一起。你建一个，把密码给家里人就行。</div>' +
+    '<button class="btn" style="width:100%;margin-top:10px" onclick="openFamCreate()">我是家长，建一个家庭</button>' +
+    '<button class="btn ghost" style="width:100%;margin-top:8px" onclick="openFamJoin()">我加入别人的家庭</button>' +
+    '<button class="btn ghost" style="width:100%;margin-top:8px" onclick="closeSheet()">等会儿再说</button>';
+  sheet(h);
+}
+
+function openFamCreate(){
+  if(!fyVip()){
+    sheet('<h2>还没开通 <button class="close" onclick="closeSheet()">关</button></h2>' +
+      '<div class="tipbar">建家庭要用官网账号，并且得有「家里的小厨房」的购买记录。</div>' +
+      '<div class="tipbar">还没买？去 fenyuetongqiu.top 的「产品」里下单，我们确认收款后就能建。</div>' +
+      '<button class="btn" style="width:100%;margin-top:10px" onclick="closeSheet()">知道了</button>');
+    return;
+  }
+  sheet('<h2>建一个家庭 <button class="close" onclick="closeSheet()">关</button></h2>' +
+    '<div class="frmsec"><i>1</i>家庭名字</div>' +
+    '<input id="famName" placeholder="比如：秋家厨房" maxlength="16" style="width:100%">' +
+    '<div class="frmsec"><i>2</i>家庭密码</div>' +
+    '<input id="famPw" placeholder="4 位以上，给家里人用" maxlength="20" style="width:100%">' +
+    '<button class="btn" style="width:100%;margin-top:10px" onclick="doFamCreate()">建好</button>');
+}
+function doFamCreate(){
+  var nm = ($('#famName').value || '').trim();
+  var pw = ($('#famPw').value || '').trim();
+  if(nm.length < 2){ toast('家庭名字太短了'); return; }
+  if(pw.length < 4){ toast('密码至少 4 位'); return; }
+  var f = {
+    id: 'f' + Date.now(),
+    name: nm,
+    pw: hashPw(pw),
+    owner: CONF.user,
+    ts: Date.now(),
+    members: [{ name: CONF.user, role: 'owner', fy: (fyInfo() && fyInfo().email) || '', ts: Date.now() }]
+  };
+  fams().push(f);
+  S.myFam = f.id;
+  save(); push();
+  closeSheet();
+  render();
+  toast('家庭「' + nm + '」建好了');
+}
+
+function openFamJoin(){
+  sheet('<h2>加入家庭 <button class="close" onclick="closeSheet()">关</button></h2>' +
+    '<div class="frmsec"><i>1</i>家庭密码</div>' +
+    '<input id="joinPw" placeholder="问家长要" maxlength="20" style="width:100%">' +
+    '<div class="frmsec"><i>2</i>你在这里叫什么</div>' +
+    '<input id="joinName" value="' + esc(CONF.user || '') + '" placeholder="比如：秋、妈妈" maxlength="12" style="width:100%">' +
+    '<button class="btn" style="width:100%;margin-top:10px" onclick="doFamJoin()">加入</button>');
+}
+function doFamJoin(){
+  var pw = ($('#joinPw').value || '').trim();
+  var nm = ($('#joinName').value || '').trim();
+  if(!pw || !nm){ toast('密码和名字都要填'); return; }
+  var h = hashPw(pw);
+  var hit = fams().filter(function(f){ return f.pw === h; })[0];
+  if(!hit){ toast('密码不对，或这个家庭还没建好'); return; }
+  if(!hit.members) hit.members = [];
+  var ex = hit.members.filter(function(m){ return m.name === nm; })[0];
+  if(ex){ ex.fy = (fyInfo() && fyInfo().email) || ex.fy || ''; }
+  else hit.members.push({ name: nm, role: 'member', fy: (fyInfo() && fyInfo().email) || '', ts: Date.now() });
+  S.myFam = hit.id;
+  CONF.user = nm;
+  CONF.lastName = nm;
+  if(!CONF.role) CONF.role = 'member';
+  save(); saveConf(); push();
+  closeSheet();
+  TAB = (CONF.role === 'cook' ? 'cook' : 'order');
+  render();
+  toast('进了「' + hit.name + '」');
+}
+
+function famLeave(){
+  var f = myFam();
+  if(!f) return;
+  if(f.owner === CONF.user){ toast('你是家长，不能退出（可以改名）'); return; }
+  f.members = (f.members || []).filter(function(m){ return m.name !== CONF.user; });
+  S.myFam = '';
+  save(); push(); render();
+  toast('退出家庭了');
+}
+function famKick(name){
+  var f = myFam();
+  if(!f || !famIsOwner() || name === f.owner) return;
+  if(!confirm('把「' + name + '」请出家庭？')) return;
+  f.members = (f.members || []).filter(function(m){ return m.name !== name; });
+  save(); push(); render();
+}
+function famRename(){
+  var f = myFam();
+  if(!f || !famIsOwner()) return;
+  var nm = prompt('新的家庭名字', f.name);
+  if(!nm) return;
+  nm = nm.trim();
+  if(nm.length < 2){ toast('太短了'); return; }
+  f.name = nm;
+  save(); push(); render();
+  toast('改好了');
+}
+
+/* ---------- 软件名字 ---------- */
+function appName(){ return (S.appName && S.appName.trim()) || '家里的小厨房'; }
+function setAppName(){
+  var v = ($('#appNm').value || '').trim();
+  if(!v){ toast('名字不能空'); return; }
+  S.appName = v;
+  save(); push();
+  document.title = v;
+  closeSheet();
+  render();
+  toast('改好了');
+}
+
+/* ---------- 营养分析 ---------- */
+function nutBuckets(){
+  return [
+    { k: 'protein', n: '蛋白', ideal: 0.30, tip: '肉、蛋、鱼、豆制品' },
+    { k: 'veg', n: '蔬菜', ideal: 0.35, tip: '青菜、瓜、菌菇' },
+    { k: 'staple', n: '主食', ideal: 0.25, tip: '饭、面、饼、馒头' },
+    { k: 'soup', n: '汤水', ideal: 0.10, tip: '汤、羹、粥' }
+  ];
+}
+function nutOf(r){
+  var c = catOf(r);
+  var nm = (r.name || '');
+  var o = { protein: 0, veg: 0, staple: 0, soup: 0 };
+  if(c === '荤菜') o.protein = 2;
+  else if(c === '素菜') o.veg = 2;
+  else if(c === '主食') o.staple = 2;
+  else if(c === '汤') o.soup = 2;
+  else if(c === '甜点' || c === '小吃') { o.staple = 1; o.protein = 1; }
+  if(/蛋|豆腐|豆|虾|鱼|肉|鸡|鸭|牛|猪|排骨|蛤|贝/.test(nm) && !o.protein) o.protein = 1;
+  if(/青菜|白菜|西兰花|豆角|茄子|黄瓜|番茄|西红柿|萝卜|冬瓜|菇|木耳|藕|菠菜|生菜|包菜|芹菜/.test(nm) && !o.veg) o.veg = 1;
+  if(/饭|面|粉|饼|馍|饺|包|馒头|粥|糕|条/.test(nm) && !o.staple) o.staple = 1;
+  if(/汤|羹|粥/.test(nm) && !o.soup) o.soup = 1;
+  return o;
+}
+function nutRange(){ return NUT_R; }
+function nutOrders(){
+  var done = liveOrders().filter(function(o){ return o.status === 'done'; });
+  var t0 = statStart(nutRange());
+  return done.filter(function(o){ return (o.doneTs || o.upd || o.ts || 0) >= t0; });
+}
+function nutData(){
+  var ords = nutOrders();
+  var counts = { protein: 0, veg: 0, staple: 0, soup: 0 };
+  var dish = {};
+  ords.forEach(function(o){
+    (o.items || []).forEach(function(it){
+      var r = byId(it.id);
+      var n = it.n || 1;
+      dish[it.name] = (dish[it.name] || 0) + n;
+      if(r){
+        var b = nutOf(r);
+        for(var k in b) counts[k] += b[k] * n;
+      }
+    });
+  });
+  return { ords: ords.length, counts: counts, dish: dish };
+}
+function viewNutri(){
+  var d = nutData();
+  var total = 0;
+  for(var k in d.counts) total += d.counts[k];
+  var h = '<div class="head"><div><div class="kicker">NUTRITION</div><h2>这段时间吃得咋样</h2></div>' +
+    '<p>看你点的菜，说人话</p></div>';
+  h += '<div class="chips" style="margin-bottom:12px">' +
+    [['week', '这周'], ['month', '这个月'], ['year', '今年'], ['all', '全部']].map(function(x){
+      return '<button class="chip ' + (NUT_R === x[0] ? 'on' : '') + '" onclick="setNutR(\'' + x[0] + '\')">' + x[1] + '</button>';
+    }).join('') + '</div>';
+
+  if(!total){
+    h += '<div class="card"><div style="color:var(--ink2)">这段时间还没有做完的菜，先去点几道、做几道，这里就有数了。</div></div>';
+    return h;
+  }
+
+  h += '<div class="card" style="margin-bottom:10px">' +
+    '<div style="font-size:13px;color:var(--ink2);margin-bottom:8px">做了 ' + d.ords + ' 单，一共 ' + total + ' 份</div>' +
+    nutBuckets().map(function(b){
+      var v = d.counts[b.k] || 0;
+      var pct = Math.round(v / total * 100);
+      return '<div style="margin:10px 0">' +
+        '<div style="display:flex;font-size:13px"><b style="flex:1">' + b.n + '</b><span style="color:var(--ink2)">' + v + ' 份 · ' + pct + '%</span></div>' +
+        '<div style="height:8px;border-radius:99px;background:var(--line);margin-top:6px;overflow:hidden">' +
+          '<div style="height:100%;width:' + Math.min(100, pct) + '%;background:linear-gradient(90deg,var(--brand2),var(--brand))"></div>' +
+        '</div></div>';
+    }).join('') + '</div>';
+
+  var verdict = [];
+  nutBuckets().forEach(function(b){
+    var v = d.counts[b.k] || 0;
+    var pct = total ? v / total : 0;
+    if(pct < b.ideal - 0.08) verdict.push({ k: 'less', t: b.n + '偏少' });
+    else if(pct > b.ideal + 0.18) verdict.push({ k: 'more', t: b.n + '偏多' });
+  });
+  h += '<div class="card" style="margin-bottom:10px">' +
+    '<div style="font-size:13px;color:var(--ink2);margin-bottom:8px">结论</div>' +
+    (verdict.length
+      ? verdict.map(function(v){
+          var cls = v.k === 'less' ? 'color:#c0392b' : 'color:#b8860b';
+          return '<div style="font-size:14px;margin:6px 0;' + cls + '">· ' + v.t + '</div>';
+        }).join('')
+      : '<div style="font-size:14px">· 还算均衡，肉菜素菜主食汤都有。</div>') +
+    '<div style="font-size:12px;color:var(--ink2);margin-top:8px">按「蛋白 30% / 蔬菜 35% / 主食 25% / 汤 10%」估的，别当医嘱。</div>' +
+    '</div>';
+
+  var suggestion = [];
+  nutBuckets().forEach(function(b){
+    var pct = total ? (d.counts[b.k] || 0) / total : 0;
+    if(pct < b.ideal - 0.08){
+      var cands = ALL().filter(function(r){ return (nutOf(r)[b.k] || 0) > 0 && avoidDish(r) === false; });
+      cands = cands.slice(0, 3);
+      if(cands.length) suggestion.push({ t: '补点' + b.n + '：' + cands.map(function(r){ return r.name; }).join('、') });
+    }
+  });
+  if(suggestion.length){
+    h += '<div class="card" style="margin-bottom:10px"><div style="font-size:13px;color:var(--ink2);margin-bottom:6px">可以补</div>' +
+      suggestion.map(function(s){ return '<div style="font-size:14px;margin:6px 0">· ' + esc(s.t) + '</div>'; }).join('') + '</div>';
+  }
+
+  var top = Object.keys(d.dish).sort(function(a, b){ return d.dish[b] - d.dish[a]; }).slice(0, 5);
+  if(top.length){
+    h += '<div class="card"><div style="font-size:13px;color:var(--ink2);margin-bottom:6px">点得最多</div>' +
+      top.map(function(k){ return '<div style="display:flex;font-size:14px;margin:5px 0"><span style="flex:1">' + esc(k) + '</span><span style="color:var(--ink2)">' + d.dish[k] + ' 份</span></div>'; }).join('') + '</div>';
+  }
+  return h;
+}
+function setNutR(r){ NUT_R = r; render(); window.scrollTo(0,0); }
+
+/* ---------- 我的页顶部账号卡 ---------- */
+function accCardHTML(){
+  var f = myFam();
+  var h = '<div class="card" style="margin-bottom:10px;padding:14px">';
+  h += '<div style="display:flex;align-items:center;gap:10px">';
+  h += '<div style="font-size:16px;font-weight:700;flex:1">' + esc(CONF.user || '未登录') + '</div>';
+  h += '<span class="chip ' + (fyVip() ? 'on' : '') + '" style="cursor:default">' + (fyVip() ? '已开通' : (fyOn() ? '未开通' : '本机模式')) + '</span>';
+  h += '</div>';
+  h += '<div style="font-size:13px;color:var(--ink2);margin-top:8px">' + (fyOn() ? '风月账号：' + esc(fyName()) : '还没绑风月账号（官网那个）') + '</div>';
+  if(f){
+    h += '<div style="font-size:13px;color:var(--ink2);margin-top:4px">家庭：' + esc(f.name) + ' · ' + (famIsOwner() ? '家长' : '成员') + ' · ' + famMembers().length + ' 人</div>';
+  }
+  h += '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px">';
+  if(!fyOn()) h += '<button class="btn mini" onclick="openFyLogin()">绑风月账号</button>';
+  else h += '<button class="btn mini gray" onclick="fyLogout()">解绑账号</button>';
+  if(!f){
+    h += '<button class="btn mini ghost" onclick="openFamGate()">建 / 加入家庭</button>';
+  } else {
+    if(famIsOwner()){ h += '<button class="btn mini ghost" onclick="famRename()">改家庭名</button>' + '<button class="btn mini ghost" onclick="famNewPw()">改家庭密码</button>'; }
+    else { h += '<button class="btn mini gray" onclick="famLeave()">退出家庭</button>'; }
+    h += '<button class="btn mini ghost" onclick="openFamMembers()">成员</button>';
+  }
+  h += '</div></div>';
+  return h;
+}
+
+function openFamMembers(){
+  var f = myFam();
+  if(!f){ toast('还没加入家庭'); return; }
+  var h = '<h2>家庭成员 <button class="close" onclick="closeSheet()">关</button></h2>' +
+    '<div class="tipbar">把家庭密码给家里人，他们在登录页点「我是家里的成员」就能进。</div>' +
+    famMembers().map(function(m, i){
+      return '<div style="display:flex;align-items:center;gap:8px;padding:9px 0;border-top:1px solid var(--line)">' +
+        '<span style="flex:1">' + esc(m.name) + (m.role === 'owner' ? '（家长）' : '') + '</span>' +
+        (famIsOwner() && m.role !== 'owner' ? '<button class="btn mini gray" onclick="famKick(\'' + esc(m.name) + '\')">请出</button>' : '') +
+        '</div>';
+    }).join('') +
+    (famIsOwner() ? '<button class="btn" style="width:100%;margin-top:12px" onclick="openFamPwSet()">改家庭密码</button>' : '');
+  sheet(h);
+}
+
+function openFamPwSet(){
+  sheet('<h2>改家庭密码 <button class="close" onclick="closeSheet()">关</button></h2>' +
+    '<div class="frmsec"><i>1</i>新密码</div>' +
+    '<input id="newFamPw" placeholder="4 位以上" maxlength="20" style="width:100%">' +
+    '<button class="btn" style="width:100%;margin-top:10px" onclick="doFamNewPw()">改</button>');
+}
+function doFamNewPw(){
+  var f = myFam();
+  if(!f || !famIsOwner()){ toast('只有家长能改'); return; }
+  var pw = ($('#newFamPw').value || '').trim();
+  if(pw.length < 4){ toast('至少 4 位'); return; }
+  f.pw = hashPw(pw);
+  save(); push(); closeSheet(); toast('家庭密码改好了');
+}
+function famNewPw(){ openFamPwSet(); }
+
 /* ---------- 启动 ---------- */
 TAB = (CONF.role === 'cook' ? 'cook' : 'order');
+document.title = appName();
 render();
+setTimeout(function(){ checkUpdate(true); }, 4000);
 setSyncState('off', syncOn() ? syncName() : '仅本机');
 if(syncOn()){ pull().then(function(ok){ if(ok) render(); }); }
 setInterval(function(){
