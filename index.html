@@ -120,6 +120,12 @@ main{padding:8px 14px 20px}
 .qty button{width:26px;height:26px;border-radius:8px;border:1px solid var(--line);background:#fff;font-size:15px;line-height:1;cursor:pointer}
 /* 登录 */
 .login{min-height:80vh;display:flex;flex-direction:column;justify-content:center;gap:12px;padding:20px 16px 40px}
+  .loginalt{display:flex;align-items:center;justify-content:center;gap:10px;margin-top:16px;font-size:13px}
+  .loginalt button{background:none;border:0;padding:2px 0;color:var(--ink2);font-size:13px;cursor:pointer;border-bottom:1px dashed rgba(120,110,100,.45)}
+  .loginalt button:hover{color:var(--ink)}
+  .loginalt i{width:1px;height:12px;background:rgba(120,110,100,.35)}
+  .loginver{display:flex;align-items:center;justify-content:center;gap:10px;margin-top:10px;font-size:12px;color:var(--ink2)}
+  .loginver button{background:none;border:0;padding:0;font-size:12px;color:var(--ink2);text-decoration:underline;text-underline-offset:3px;cursor:pointer}
 .login h1{font-size:22px;margin:0 0 4px;text-align:center}
 .login p{margin:0;text-align:center;color:var(--ink2);font-size:13px}
 .roles{display:flex;flex-direction:column;gap:12px;margin-top:18px}
@@ -890,18 +896,19 @@ function renderLogin(){
           '<button class="chip ' + (LOGIN_ROLE === 'member' ? 'on' : '') + '" onclick="setLoginRole(\'member\')">家人（点菜）</button>' +
           '<button class="chip ' + (LOGIN_ROLE === 'cook' ? 'on' : '') + '" onclick="setLoginRole(\'cook\')">厨师（做菜）</button>' +
         '</div></div>' +
-        '<button class="btn" style="width:100%;margin-top:8px" onclick="doLogin()">进来</button>' +
-        '<div style="font-size:12px;color:var(--ink2);margin-top:8px">一个名字一个密码，厨师端和点菜端都能进；老账号第一次登录会把这次的密码记下来。</div>' +
-        '<button class="btn ghost" style="width:100%;margin-top:8px" onclick="openForgot()">忘记密码？点这里换一个</button>' +
-        '<button class="btn" style="width:100%;margin-top:12px;background:linear-gradient(135deg,#59d0ff,#a78bfa);color:#0b1020" onclick="openFyLogin()">用风月账号登录（官网）</button>' +
-        '<button class="btn ghost" style="width:100%;margin-top:8px" onclick="openFamJoin()">我是家里的成员，用家庭密码进</button>' +
+        '<button class="btn" style="width:100%;margin-top:10px" onclick="doLogin()">进来</button>' +
       '</div>' +
-      '<div style="display:flex;gap:8px;margin-top:14px">' +
-        '<button class="btn ghost" style="flex:1" onclick="openSync()">同步设置</button>' +
-        '<button class="btn ghost" style="flex:1" onclick="openAbout()">怎么用</button>' +
+      '<div class="loginalt">' +
+        '<button onclick="openFyLogin()">用风月账号登录</button>' +
+        '<i></i>' +
+        '<button onclick="openFamJoin()">家庭密码加入</button>' +
+        '<i></i>' +
+        '<button onclick="openForgot()">忘记密码</button>' +
       '</div>' +
-      '<div style="text-align:center;margin-top:12px;font-size:12px;color:var(--ink2)">' +
-        (syncOn() ? '两边自动同步，不用设置' : '还没开同步（只在这台设备上有效）') + '</div>' +
+      '<div class="loginver">' +
+        '<span>v' + esc(APP_VERSION) + '</span>' +
+        '<button onclick="checkUpdate(false)">检查更新</button>' +
+      '</div>' +
     '</div>';
 }
 function setLoginRole(r){ LOGIN_ROLE = r; renderLogin(); }
@@ -2419,7 +2426,15 @@ function accCardHTML(){
   h += '<div style="font-size:16px;font-weight:700;flex:1">' + esc(CONF.user || '未登录') + '</div>';
   h += '<span class="chip ' + (fyVip() ? 'on' : '') + '" style="cursor:default">' + (fyVip() ? '已开通' : (fyOn() ? '未开通' : '本机模式')) + '</span>';
   h += '</div>';
-  h += '<div style="font-size:13px;color:var(--ink2);margin-top:8px">' + (fyOn() ? '风月账号：' + esc(fyName()) : '还没绑风月账号（官网那个）') + '</div>';
+  h += '<div style="font-size:13px;color:var(--ink2);margin-top:8px">' + (fyOn() ? '风月账号：' + esc(fyName()) : '还没绑风月账号') + '</div>';
+  if(fyOn()){
+    h += '<div style="font-size:13px;color:var(--ink2);margin-top:4px">会员：' +
+      (fyVip() ? '<b style="color:var(--ok)">已开通</b> · 家庭模式可用' :
+        '<b>未开通</b> · <a href="https://fenyuetongqiu.top/#/products" target="_blank" rel="noopener" style="color:var(--brand);text-decoration:underline">去开通</a>') +
+      '</div>';
+  } else {
+    h += '<div style="font-size:13px;color:var(--ink2);margin-top:4px">会员：绑了风月账号才能查</div>';
+  }
   if(f){
     h += '<div style="font-size:13px;color:var(--ink2);margin-top:4px">家庭：' + esc(f.name) + ' · ' + (famIsOwner() ? '家长' : '成员') + ' · ' + famMembers().length + ' 人</div>';
   }
@@ -2433,7 +2448,12 @@ function accCardHTML(){
     else { h += '<button class="btn mini gray" onclick="famLeave()">退出家庭</button>'; }
     h += '<button class="btn mini ghost" onclick="openFamMembers()">成员</button>';
   }
-  h += '</div></div>';
+  h += '</div>';
+  h += '<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:12px;' +
+    'padding-top:10px;border-top:1px solid var(--line);font-size:12px;color:var(--ink2)">' +
+    '<span>v' + esc(APP_VERSION) + '</span>' +
+    '<button class="btn mini gray" onclick="checkUpdate(false)">检查更新</button>' +
+    '</div></div>';
   return h;
 }
 
