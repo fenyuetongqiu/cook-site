@@ -2148,8 +2148,25 @@ function doFyLogin(){
   }).catch(function(e){ toast(e.message || '登录失败'); });
 }
 
+function fyVipText(){ var f = fyInfo(); return (f && f.vipText) || ''; }
+function fyVipDays(){ var f = fyInfo(); return (f && typeof f.vipDays === 'number') ? f.vipDays : -1; }
+
 function fyCheckVip(){
   if(!fyOn()) return Promise.resolve(false);
+  // 新机制：直接问后端「我这个账号是不是会员、到哪天」
+  return fyCall('me/vip').then(function(j){
+    var v = (j && j.vip) || {};
+    CONF.fy.vip = !!v.on || CONF.fy.role === 'admin';
+    CONF.fy.vipText = v.text || '';
+    CONF.fy.vipDays = (typeof v.days === 'number') ? v.days : -1;
+    CONF.fy.vipUntil = v.until || 0;
+    saveConf();
+    return CONF.fy.vip;
+  }).catch(function(){ return fyCheckVipOld(); });
+}
+
+// 老逻辑兜底（后端还没更新 / 断网时用）：买过厨房就算会员
+function fyCheckVipOld(){
   return fyCall('me/orders').then(function(j){
     var list = j.orders || [];
     var paid = list.filter(function(o){ return o.status === 'paid'; });
@@ -2424,13 +2441,16 @@ function accCardHTML(){
   var h = '<div class="card" style="margin-bottom:10px;padding:14px">';
   h += '<div style="display:flex;align-items:center;gap:10px">';
   h += '<div style="font-size:16px;font-weight:700;flex:1">' + esc(CONF.user || '未登录') + '</div>';
-  h += '<span class="chip ' + (fyVip() ? 'on' : '') + '" style="cursor:default">' + (fyVip() ? '已开通' : (fyOn() ? '未开通' : '本机模式')) + '</span>';
+  h += '<span class="chip ' + (fyVip() ? 'on' : '') + '" style="cursor:default">' + (fyVip() ? (fyVipDays() > 0 ? '剩 ' + fyVipDays() + ' 天' : '会员') : (fyOn() ? '未开通' : '本机模式')) + '</span>';
   h += '</div>';
   h += '<div style="font-size:13px;color:var(--ink2);margin-top:8px">' + (fyOn() ? '风月账号：' + esc(fyName()) : '还没绑风月账号') + '</div>';
   if(fyOn()){
     h += '<div style="font-size:13px;color:var(--ink2);margin-top:4px">会员：' +
-      (fyVip() ? '<b style="color:var(--ok)">已开通</b> · 家庭模式可用' :
-        '<b>未开通</b> · <a href="https://fenyuetongqiu.top/#/products" target="_blank" rel="noopener" style="color:var(--brand);text-decoration:underline">去开通</a>') +
+      (fyVip()
+        ? '<b style="color:var(--ok)">' + esc(fyVipText() || '已开通') + '</b>' +
+          (fyVipDays() > 0 ? ' · 还剩 <b>' + fyVipDays() + '</b> 天' : (fyVipDays() === -1 ? ' · 长期有效' : '')) +
+          ' · 家庭模式可用'
+        : '<b>未开通</b> · <a href="https://fenyuetongqiu.top/#/products" target="_blank" rel="noopener" style="color:var(--brand);text-decoration:underline">去开通</a>') +
       '</div>';
   } else {
     h += '<div style="font-size:13px;color:var(--ink2);margin-top:4px">会员：绑了风月账号才能查</div>';
